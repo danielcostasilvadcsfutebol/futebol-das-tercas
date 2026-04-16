@@ -17,6 +17,7 @@ export default function Admin() {
   const [mensagem, setMensagem] = useState({ tipo: '', texto: '' })
   const [editarResultado, setEditarResultado] = useState(null)
   const [editarJogo, setEditarJogo] = useState(null)
+  const [votacaoMvp, setVotacaoMvp] = useState(null) // { matchId, players: [], votosExistentes: [] }
 
   const [novoJogo, setNovoJogo] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -212,6 +213,45 @@ export default function Admin() {
     mostrarMensagem('ok', '✅ Resultado guardado!')
     setEditarResultado(null)
     carregarDados()
+  }
+
+  const abrirVotacaoMvp = async (match) => {
+    const jogadoresDoJogo = match.match_players?.map(mp => ({
+      id: mp.players?.id,
+      name: mp.players?.name,
+      team: mp.played_for,
+    })).filter(p => p.id) || []
+
+    const { data: votosExistentes } = await supabase
+      .from('mvp_votes')
+      .select('*')
+      .eq('match_id', match.id)
+
+    setVotacaoMvp({
+      matchId: match.id,
+      matchLabel: `${new Date(match.date).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' })} · Série ${match.series?.id}`,
+      players: jogadoresDoJogo,
+      votosExistentes: votosExistentes || [],
+      novoVoto: '',
+    })
+  }
+
+  const submeterVotoMvp = async () => {
+    if (!votacaoMvp.novoVoto) { mostrarMensagem('erro', 'Seleciona um jogador'); return }
+    const { error } = await supabase.from('mvp_votes').insert({
+      match_id: votacaoMvp.matchId,
+      voted_for_player_id: parseInt(votacaoMvp.novoVoto),
+    })
+    if (error) { mostrarMensagem('erro', 'Erro: ' + error.message); return }
+    mostrarMensagem('ok', '✅ Voto registado!')
+    abrirVotacaoMvp(matches.find(m => m.id === votacaoMvp.matchId))
+  }
+
+  const apagarVotosMvp = async (matchId) => {
+    if (!confirm('Apagar todos os votos MVP deste jogo?')) return
+    await supabase.from('mvp_votes').delete().eq('match_id', matchId)
+    mostrarMensagem('ok', '✅ Votos apagados!')
+    setVotacaoMvp(null)
   }
 
   const apagarJogo = async (id) => {
@@ -779,6 +819,10 @@ export default function Admin() {
                           className="text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30 px-2.5 py-1.5 rounded-lg transition">
                           🗑
                         </button>
+                        <button onClick={() => votacaoMvp?.matchId === match.id ? setVotacaoMvp(null) : abrirVotacaoMvp(match)}
+                          className="text-xs bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 px-2.5 py-1.5 rounded-lg transition">
+                          ⭐
+                        </button>
                       </div>
                     </div>
                     {!isEditing && (brancos?.length > 0 || pretos?.length > 0) && (
@@ -915,6 +959,67 @@ export default function Admin() {
                             Cancelar
                           </button>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Painel de votação MVP */}
+                    {votacaoMvp?.matchId === match.id && !isEditing && (
+                      <div className="mt-3 pt-3 border-t border-yellow-500/20 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-yellow-400 text-xs font-bold">⭐ Votar Melhor em Campo</p>
+                          <span className="text-slate-500 text-xs">{votacaoMvp.votosExistentes.length} votos</span>
+                        </div>
+
+                        {/* Resultados atuais */}
+                        {votacaoMvp.votosExistentes.length > 0 && (() => {
+                          const contagemVotos = {}
+                          votacaoMvp.votosExistentes.forEach(v => {
+                            contagemVotos[v.voted_for_player_id] = (contagemVotos[v.voted_for_player_id] || 0) + 1
+                          })
+                          return (
+                            <div className="space-y-1.5">
+                              {votacaoMvp.players
+                                .filter(p => contagemVotos[p.id])
+                                .sort((a,b) => (contagemVotos[b.id]||0) - (contagemVotos[a.id]||0))
+                                .map(p => (
+                                <div key={p.id} className="flex items-center gap-2">
+                                  <span className="text-slate-300 text-xs w-28 truncate">{p.name}</span>
+                                  <div className="flex-1 bg-slate-700 rounded-full h-2 overflow-hidden">
+                                    <div className="h-full bg-yellow-500 rounded-full" style={{width:`${(contagemVotos[p.id]/votacaoMvp.votosExistentes.length)*100}%`}}></div>
+                                  </div>
+                                  <span className="text-yellow-400 text-xs font-bold w-4 text-right">{contagemVotos[p.id]}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        })()}
+
+                        {/* Adicionar voto */}
+                        {votacaoMvp.players.length > 0 ? (
+                          <div className="flex gap-2">
+                            <select value={votacaoMvp.novoVoto}
+                              onChange={e => setVotacaoMvp(p => ({ ...p, novoVoto: e.target.value }))}
+                              className="flex-1 bg-slate-700 text-white rounded-lg px-2 py-1.5 border border-slate-600 text-xs">
+                              <option value="">— Selecionar jogador —</option>
+                              {votacaoMvp.players.map(p => (
+                                <option key={p.id} value={p.id}>{p.name} ({p.team === 'white' ? '⚪' : '⚫'})</option>
+                              ))}
+                            </select>
+                            <button onClick={submeterVotoMvp}
+                              className="bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 rounded-lg px-3 text-xs font-bold transition">
+                              Votar
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="text-slate-500 text-xs">Nenhum jogador associado a este jogo.</p>
+                        )}
+
+                        {votacaoMvp.votosExistentes.length > 0 && (
+                          <button onClick={() => apagarVotosMvp(match.id)}
+                            className="text-xs text-red-400/60 hover:text-red-400 transition">
+                            Apagar todos os votos
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
