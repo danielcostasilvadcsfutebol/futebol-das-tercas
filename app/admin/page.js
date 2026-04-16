@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
-const PASSWORD = 'futebol2024'
+const EMAIL = 'o-teu@email.com'   // ← muda para o teu e-mail
+const PIN = '1234'                 // ← muda para o PIN que quiseres
 
 export default function Admin() {
   const [autenticado, setAutenticado] = useState(false)
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [tab, setTab] = useState('jogos')
   const [series, setSeries] = useState([])
@@ -49,6 +51,14 @@ export default function Admin() {
   const mostrarMensagem = (tipo, texto) => {
     setMensagem({ tipo, texto })
     setTimeout(() => setMensagem({ tipo: '', texto: '' }), 3000)
+  }
+
+  const tentarLogin = () => {
+    if (email === EMAIL && password === PIN) {
+      setAutenticado(true)
+    } else {
+      alert('E-mail ou PIN incorretos')
+    }
   }
 
   const togglePlayer = (playerId, team) => {
@@ -158,17 +168,31 @@ export default function Admin() {
   if (!autenticado) {
     return (
       <div className="max-w-xs mx-auto mt-16 space-y-4">
-        <h1 className="text-2xl font-bold text-white text-center">🔒 Área Admin</h1>
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && (password === PASSWORD ? setAutenticado(true) : alert('Password incorreta'))}
-          className="w-full bg-slate-700 text-white rounded-xl px-4 py-3 border border-slate-600 focus:outline-none focus:border-green-500"
-        />
+        <h1 className="text-2xl font-bold text-white text-center">🔒 Admin</h1>
+        <div>
+          <label className="text-slate-400 text-xs mb-1 block">E-mail</label>
+          <input
+            type="email"
+            placeholder="o-teu@email.com"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            className="w-full bg-slate-700 text-white rounded-xl px-4 py-3 border border-slate-600 focus:outline-none focus:border-green-500"
+          />
+        </div>
+        <div>
+          <label className="text-slate-400 text-xs mb-1 block">PIN</label>
+          <input
+            type="password"
+            placeholder="••••"
+            maxLength={6}
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && tentarLogin()}
+            className="w-full bg-slate-700 text-white rounded-xl px-4 py-3 border border-slate-600 focus:outline-none focus:border-green-500 text-center tracking-widest text-xl"
+          />
+        </div>
         <button
-          onClick={() => password === PASSWORD ? setAutenticado(true) : alert('Password incorreta')}
+          onClick={tentarLogin}
           className="w-full bg-green-600 hover:bg-green-500 active:bg-green-700 text-white rounded-xl px-4 py-3 font-bold transition"
         >
           Entrar
