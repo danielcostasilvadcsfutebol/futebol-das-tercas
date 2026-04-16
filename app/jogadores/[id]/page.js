@@ -38,9 +38,11 @@ export default async function PerfilJogador({ params }) {
 
   const { data: mvpVotes } = await supabase
     .from('mvp_votes')
-    .select('match_id')
+    .select('match_id, voted_at, matches(date, phase, match_number, series_id)')
     .eq('voted_for_player_id', params.id)
+    .order('voted_at', { ascending: false })
 
+  // Estatísticas
   const comResultado = player.match_players?.filter(
     mp => mp.matches?.white_wins !== null && mp.matches?.black_wins !== null
   ) || []
@@ -69,6 +71,7 @@ export default async function PerfilJogador({ params }) {
     mp.played_for === 'white' ? mp.matches.white_wins > mp.matches.black_wins : mp.matches.black_wins > mp.matches.white_wins
   ).length
 
+  // Últimos 5 jogos
   const ultimos5 = [...comResultado]
     .sort((a, b) => new Date(b.matches.date) - new Date(a.matches.date))
     .slice(0, 5)
@@ -82,6 +85,7 @@ export default async function PerfilJogador({ params }) {
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600;700&display=swap');
         .perfil-page { font-family: 'DM Sans', sans-serif; }
         .display-font { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.04em; }
+
         .stat-block {
           background: linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.98));
           border-radius: 14px;
@@ -102,6 +106,7 @@ export default async function PerfilJogador({ params }) {
           letter-spacing: 0.1em;
           margin-top: 3px;
         }
+
         .section-card {
           background: linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.98));
           border: 1px solid rgba(255,255,255,0.07);
@@ -116,6 +121,7 @@ export default async function PerfilJogador({ params }) {
           text-transform: uppercase;
           margin-bottom: 12px;
         }
+
         .resultado-pill {
           width: 28px; height: 28px;
           border-radius: 8px;
@@ -126,6 +132,7 @@ export default async function PerfilJogador({ params }) {
         .resultado-v { background: rgba(34,197,94,0.15); color: #22c55e; }
         .resultado-d { background: rgba(239,68,68,0.15); color: #ef4444; }
         .resultado-e { background: rgba(100,116,139,0.2); color: #94a3b8; }
+
         .back-btn {
           display: inline-flex;
           align-items: center;
@@ -137,11 +144,15 @@ export default async function PerfilJogador({ params }) {
           transition: color 0.15s;
         }
         .back-btn:hover { color: #94a3b8; }
+
+        .pct-ring-bg { fill: none; stroke: rgba(255,255,255,0.07); }
+        .pct-ring-fill { fill: none; stroke-linecap: round; transition: stroke-dashoffset 0.5s ease; }
       `}</style>
 
       <div className="perfil-page pb-12">
         <a href="/jogadores" className="back-btn">← Jogadores</a>
 
+        {/* Hero — foto + nome + info */}
         <div style={{
           background: isWhite
             ? 'linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.98))'
@@ -153,13 +164,16 @@ export default async function PerfilJogador({ params }) {
           position: 'relative',
           overflow: 'hidden',
         }}>
+          {/* Decoração de fundo */}
           <div style={{
             position: 'absolute', top: -30, right: -30,
             width: 140, height: 140, borderRadius: '50%',
             background: isWhite ? 'rgba(226,232,240,0.04)' : 'rgba(0,0,0,0.3)',
             pointerEvents: 'none',
           }} />
+
           <div style={{display:'flex', alignItems:'center', gap:16}}>
+            {/* Foto */}
             {player.photo_url
               ? <img src={player.photo_url} alt={player.name} style={{
                   width: 80, height: 80, borderRadius: '50%', objectFit: 'cover', flexShrink: 0,
@@ -177,6 +191,7 @@ export default async function PerfilJogador({ params }) {
                   {player.name.charAt(0).toUpperCase()}
                 </div>
             }
+
             <div style={{flex:1, minWidth:0}}>
               <div style={{
                 fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase',
@@ -205,6 +220,7 @@ export default async function PerfilJogador({ params }) {
           </div>
         </div>
 
+        {/* Stats principais */}
         <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:16}}>
           {[
             { val: jogos, lbl: 'Jogos' },
@@ -212,7 +228,9 @@ export default async function PerfilJogador({ params }) {
             { val: derrotas, lbl: 'Derrotas' },
             { val: `${pct}%`, lbl: 'Taxa V.' },
           ].map(s => (
-            <div key={s.lbl} className="stat-block" style={{border: '1px solid rgba(255,255,255,0.06)'}}>
+            <div key={s.lbl} className="stat-block" style={{
+              border: '1px solid rgba(255,255,255,0.06)',
+            }}>
               <div className="val" style={{fontSize: s.lbl === 'Taxa V.' ? '1.6rem' : '2.2rem',
                 color: s.lbl === 'Taxa V.' ? (pct >= 60 ? '#22c55e' : pct >= 40 ? '#f59e0b' : jogos === 0 ? 'white' : '#ef4444') : 'white'
               }}>{s.val}</div>
@@ -221,6 +239,7 @@ export default async function PerfilJogador({ params }) {
           ))}
         </div>
 
+        {/* Liga vs Taça */}
         <div className="section-card" style={{marginBottom:16}}>
           <div className="section-title">Por competição</div>
           <div style={{display:'flex', flexDirection:'column', gap:10}}>
@@ -248,6 +267,7 @@ export default async function PerfilJogador({ params }) {
           </div>
         </div>
 
+        {/* Últimos 5 jogos */}
         {ultimos5.length > 0 && (
           <div className="section-card" style={{marginBottom:16}}>
             <div className="section-title">Últimos jogos</div>
@@ -284,6 +304,44 @@ export default async function PerfilJogador({ params }) {
         {jogos === 0 && (
           <div style={{textAlign:'center', color:'#334155', fontSize:'0.85rem', padding:'24px 0'}}>
             Ainda sem jogos registados.
+          </div>
+        )}
+
+        {/* MVP History */}
+        {mvpTotal > 0 && (
+          <div className="section-card" style={{marginBottom:16}}>
+            <div className="section-title">⭐ Prémios MVP</div>
+            <div style={{display:'flex', flexDirection:'column', gap:8}}>
+              {/* Agrupa votos por jogo */}
+              {(() => {
+                const porJogo = {}
+                mvpVotes?.forEach(v => {
+                  if (!porJogo[v.match_id]) porJogo[v.match_id] = { count: 0, match: v.matches }
+                  porJogo[v.match_id].count++
+                })
+                return Object.entries(porJogo)
+                  .sort((a, b) => new Date(b[1].match?.date || 0) - new Date(a[1].match?.date || 0))
+                  .map(([matchId, info]) => (
+                    <div key={matchId} style={{display:'flex', alignItems:'center', gap:10}}>
+                      <div style={{width:28, height:28, borderRadius:8, background:'rgba(251,191,36,0.12)', border:'1px solid rgba(251,191,36,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.85rem', flexShrink:0}}>
+                        ⭐
+                      </div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:'0.8rem', color:'#cbd5e1', fontWeight:500}}>
+                          {info.match?.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'} · Série {info.match?.series_id}
+                          {info.match?.match_number ? ` · ${info.match.phase === 'cup' ? `Jogo ${info.match.match_number}` : `Jorn. ${info.match.match_number}`}` : ''}
+                        </div>
+                        <div style={{fontSize:'0.7rem', color:'#475569'}}>
+                          {info.match?.date ? new Date(info.match.date).toLocaleDateString('pt-PT', { day:'numeric', month:'short', year:'numeric' }) : ''}
+                        </div>
+                      </div>
+                      <div style={{fontSize:'0.78rem', fontWeight:700, color:'#f59e0b', background:'rgba(251,191,36,0.08)', padding:'3px 8px', borderRadius:8, flexShrink:0}}>
+                        {info.count} {info.count === 1 ? 'voto' : 'votos'}
+                      </div>
+                    </div>
+                  ))
+              })()}
+            </div>
           </div>
         )}
       </div>
