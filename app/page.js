@@ -20,7 +20,15 @@ export default async function Home() {
   const totalTacaBrancos = historico?.filter(s => s.cup_winner === 'white').length || 0
   const totalTacaPretos  = historico?.filter(s => s.cup_winner === 'black').length || 0
 
-  const activeComp = series?.active_competition || 'league'
+  const { data: matchVotacao } = await supabase
+    .from('matches')
+    .select('id, voting_open, voting_closes_at, date, phase, match_number, series_id')
+    .eq('voting_open', true)
+    .maybeSingle()
+
+  const horasVotacao = matchVotacao?.voting_closes_at
+    ? Math.max(0, Math.round((new Date(matchVotacao.voting_closes_at) - new Date()) / 3600000))
+    : null
   const mostrarLiga = series && (activeComp === 'league' || activeComp === 'both')
   const mostrarTaca = series && (activeComp === 'cup' || activeComp === 'both')
 
@@ -277,6 +285,49 @@ export default async function Home() {
               </div>
             )}
           </div>
+        )}
+
+        {/* Banner votação MVP */}
+        {matchVotacao && (
+          <a href="/votar" style={{
+            display:'block',
+            background:'linear-gradient(135deg, rgba(28,25,23,0.98), rgba(15,10,5,0.99))',
+            border:'1px solid rgba(251,191,36,0.3)',
+            borderRadius:16,
+            padding:'14px 16px',
+            textDecoration:'none',
+            position:'relative',
+            overflow:'hidden',
+          }}>
+            <div style={{position:'absolute', right:-10, top:-10, fontSize:'5rem', opacity:0.06, transform:'rotate(15deg)'}}>⭐</div>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+              <div>
+                <div style={{fontSize:'0.62rem', color:'#f59e0b', letterSpacing:'0.12em', textTransform:'uppercase', fontWeight:700, marginBottom:3}}>
+                  ⭐ Votação MVP aberta
+                </div>
+                <div style={{fontSize:'0.9rem', fontWeight:700, color:'white'}}>
+                  Vota no melhor em campo
+                </div>
+                {horasVotacao !== null && (
+                  <div style={{fontSize:'0.7rem', color:'#78716c', marginTop:2}}>
+                    Fecha em {horasVotacao}h
+                  </div>
+                )}
+              </div>
+              <div style={{
+                background:'rgba(251,191,36,0.15)',
+                border:'1px solid rgba(251,191,36,0.25)',
+                borderRadius:10,
+                padding:'8px 14px',
+                fontSize:'0.75rem',
+                fontWeight:700,
+                color:'#f59e0b',
+                flexShrink:0,
+              }}>
+                Votar →
+              </div>
+            </div>
+          </a>
         )}
 
         {/* Links rápidos */}
