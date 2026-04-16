@@ -27,31 +27,43 @@ export default async function Jogos() {
           </div>
         )}
         {matches?.map(match => {
-          const brancos = match.match_players?.filter(mp => mp.played_for === 'white').map(mp => mp.players?.name)
-          const pretos = match.match_players?.filter(mp => mp.played_for === 'black').map(mp => mp.players?.name)
+          const brancos = match.match_players?.filter(mp => mp.played_for === 'white').map(mp => mp.players?.name).filter(Boolean)
+          const pretos = match.match_players?.filter(mp => mp.played_for === 'black').map(mp => mp.players?.name).filter(Boolean)
           const dataFormatada = new Date(match.date).toLocaleDateString('pt-PT', {
             weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
           })
+          const isPorRealizar = match.white_wins === null && match.black_wins === null
+          const labelJornada = match.match_number
+            ? (match.phase === 'cup' ? `Jogo ${match.match_number}` : `Jornada ${match.match_number}`)
+            : null
+
           return (
-            <div key={match.id} className="bg-slate-800 rounded-2xl p-4 border border-slate-700">
+            <div key={match.id} className={`bg-slate-800 rounded-2xl p-4 border ${isPorRealizar ? 'border-yellow-500/30' : 'border-slate-700'}`}>
               <div className="flex items-start justify-between mb-3 gap-2">
                 <div>
                   <p className="text-slate-400 text-xs capitalize">{dataFormatada}</p>
                   <p className="text-slate-300 text-xs mt-0.5">
                     Série {match.series?.id} · {match.phase === 'cup' ? '🏆 Taça' : '👑 Campeonato'}
+                    {labelJornada && <span className="text-slate-500"> · {labelJornada}</span>}
                   </p>
                 </div>
-                <div className="flex items-center gap-3 bg-slate-700 rounded-xl px-4 py-2 shrink-0">
-                  <div className="text-center">
-                    <p className="text-slate-400 text-xs">⚪</p>
-                    <p className="text-2xl font-bold text-white leading-none">{match.white_wins}</p>
+                {isPorRealizar ? (
+                  <span className="text-yellow-400 text-xs font-medium bg-yellow-500/10 px-3 py-1.5 rounded-xl shrink-0">
+                    Por realizar
+                  </span>
+                ) : (
+                  <div className="flex items-center gap-3 bg-slate-700 rounded-xl px-4 py-2 shrink-0">
+                    <div className="text-center">
+                      <p className="text-slate-400 text-xs">⚪</p>
+                      <p className="text-2xl font-bold text-white leading-none">{match.white_wins}</p>
+                    </div>
+                    <p className="text-slate-500">—</p>
+                    <div className="text-center">
+                      <p className="text-slate-400 text-xs">⚫</p>
+                      <p className="text-2xl font-bold text-white leading-none">{match.black_wins}</p>
+                    </div>
                   </div>
-                  <p className="text-slate-500">—</p>
-                  <div className="text-center">
-                    <p className="text-slate-400 text-xs">⚫</p>
-                    <p className="text-2xl font-bold text-white leading-none">{match.black_wins}</p>
-                  </div>
-                </div>
+                )}
               </div>
 
               {(brancos?.length > 0 || pretos?.length > 0) && (
