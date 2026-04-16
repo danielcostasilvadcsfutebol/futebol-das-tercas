@@ -222,7 +222,7 @@ export default async function Jogadores() {
               const pctClass = pct >= 60 ? '' : pct >= 40 ? 'mid' : 'low'
               const isWhite = player.team === 'white'
               return (
-                <div key={player.id} className={`card-player ${isWhite ? 'card-white' : 'card-black'}`} style={{padding:'12px 12px'}}>
+                <a href={`/jogadores/${player.id}`} key={player.id} className={`card-player ${isWhite ? 'card-white' : 'card-black'}`} style={{padding:'12px 12px', display:'block', textDecoration:'none'}}>
                   <div style={{display:'flex', alignItems:'center', gap:9}}>
                     <span className={`rank-num rank-${idx+1}`}>{idx + 1}</span>
 
@@ -264,7 +264,7 @@ export default async function Jogadores() {
                       </div>
                     </div>
                   </div>
-                </div>
+                </a>
               )
             })}
             {todosAtivos.length === 0 && (
