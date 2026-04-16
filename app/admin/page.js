@@ -44,7 +44,7 @@ export default function Admin() {
     const { data: p } = await supabase.from('players').select('*').order('name')
     const { data: m } = await supabase
       .from('matches')
-      .select('*, series(id), match_players(played_for, players(id, name))')
+      .select('*, series(id), match_players(played_for, players(id, name)), voting_open, voting_closes_at')
       .order('date', { ascending: false })
     setSeries(s || [])
     setPlayers(p || [])
@@ -256,6 +256,21 @@ export default function Admin() {
     setVotacaoMvp(null)
   }
 
+  const toggleVotacao = async (match) => {
+    const abrindo = !match.voting_open
+    const updates = {
+      voting_open: abrindo,
+      voting_closes_at: abrindo ? new Date(Date.now() + 24 * 3600 * 1000).toISOString() : null,
+    }
+    // Fechar outras votações abertas antes de abrir nova
+    if (abrindo) {
+      await supabase.from('matches').update({ voting_open: false, voting_closes_at: null }).eq('voting_open', true)
+    }
+    await supabase.from('matches').update(updates).eq('id', match.id)
+    mostrarMensagem('ok', abrindo ? '✅ Votação aberta por 24h!' : '✅ Votação fechada!')
+    carregarDados()
+  }
+
   const apagarJogo = async (id) => {
     if (!confirm('Apagar este jogo?')) return
     await supabase.from('match_players').delete().eq('match_id', id)
@@ -305,6 +320,7 @@ export default function Admin() {
       team: editJogador.team,
       birth_date: editJogador.birth_date || null,
       photo_url: photoUrl || null,
+      pin: editJogador.pin || null,
     }).eq('id', editJogador.id)
     setUploadingPhoto(false)
     if (error) { mostrarMensagem('erro', 'Erro: ' + error.message); return }
@@ -681,6 +697,14 @@ export default function Admin() {
                           className="w-full bg-slate-700 text-white rounded-lg px-3 py-1.5 border border-slate-600 text-sm" />
                       </div>
                       <div>
+                        <label className="text-slate-400 text-xs mb-1 block">PIN de Votação MVP <span className="text-slate-600">(partilhar pessoalmente)</span></label>
+                        <input type="text" value={editJogador.pin || ''}
+                          onChange={e => setEditJogador(p => ({ ...p, pin: e.target.value }))}
+                          placeholder="ex: 1234"
+                          maxLength={8}
+                          className="w-full bg-slate-700 text-white rounded-lg px-3 py-1.5 border border-amber-500/30 text-sm font-mono tracking-widest" />
+                      </div>
+                      <div>
                         <label className="text-slate-400 text-xs mb-1 block">Foto</label>
                         <div className="flex items-center gap-3">
                           {(editJogador.photoPreview || editJogador.photo_url) && (
@@ -961,8 +985,12 @@ export default function Admin() {
                           className="text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30 px-2.5 py-1.5 rounded-lg transition">
                           🗑
                         </button>
+                        <button onClick={() => toggleVotacao(match)}
+                          className={`text-xs px-2.5 py-1.5 rounded-lg transition font-medium ${match.voting_open ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'}`}>
+                          {match.voting_open ? '🔓 MVP' : '🔒 MVP'}
+                        </button>
                         <button onClick={() => votacaoMvp?.matchId === match.id ? setVotacaoMvp(null) : abrirVotacaoMvp(match)}
-                          className="text-xs bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 px-2.5 py-1.5 rounded-lg transition">
+                          className="text-xs bg-slate-600/50 text-slate-400 hover:bg-slate-600 px-2.5 py-1.5 rounded-lg transition">
                           ⭐
                         </button>
                       </div>
