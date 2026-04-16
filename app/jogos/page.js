@@ -13,6 +13,16 @@ export default async function Jogos() {
     `)
     .order('date', { ascending: false })
 
+  const labelJornada = (match) => {
+    if (!match.match_number) return null
+    return match.phase === 'cup' ? `Jogo ${match.match_number}` : `Jornada ${match.match_number}`
+  }
+
+  const agendados = matches?.filter(m => m.white_wins === null && m.black_wins === null)
+    .sort((a, b) => new Date(a.date) - new Date(b.date)) ?? []
+  const realizados = matches?.filter(m => m.white_wins !== null && m.black_wins !== null)
+    .sort((a, b) => new Date(b.date) - new Date(a.date)) ?? []
+
   return (
     <div className="space-y-6 pb-8">
       <div className="text-center py-4">
@@ -20,76 +30,91 @@ export default async function Jogos() {
         <p className="text-slate-400 text-sm">Todas as sessões e resultados</p>
       </div>
 
-      <div className="space-y-4">
-        {matches?.length === 0 && (
-          <div className="text-center text-slate-400 py-12">
-            Ainda não há jogos registados.
+      {matches?.length === 0 && (
+        <div className="text-center text-slate-400 py-12">
+          Ainda não há jogos registados.
+        </div>
+      )}
+
+      {/* Agendados */}
+      {agendados.length > 0 && (
+        <div>
+          <h2 className="text-sm font-bold text-yellow-400 mb-3">📆 Agendados ({agendados.length})</h2>
+          <div className="space-y-3">
+            {agendados.map(match => {
+              const brancos = match.match_players?.filter(mp => mp.played_for === 'white').map(mp => mp.players?.name).filter(Boolean)
+              const pretos = match.match_players?.filter(mp => mp.played_for === 'black').map(mp => mp.players?.name).filter(Boolean)
+              return (
+                <div key={match.id} className="bg-slate-800 rounded-xl p-3 border border-yellow-500/30">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-slate-300 text-xs font-medium">
+                        {new Date(match.date).toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' })}
+                      </p>
+                      <p className="text-slate-400 text-xs">
+                        Série {match.series?.id} · {match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'}
+                        {match.match_number ? ` · ${labelJornada(match)}` : ''}
+                      </p>
+                    </div>
+                    <span className="text-yellow-400 text-xs font-medium bg-yellow-500/10 px-2.5 py-1 rounded-lg">
+                      Por realizar
+                    </span>
+                  </div>
+                  {(brancos?.length > 0 || pretos?.length > 0) && (
+                    <div className="mt-2 pt-2 border-t border-slate-700 grid grid-cols-2 gap-2">
+                      <p className="text-slate-400 text-xs">⚪ {brancos?.join(', ')}</p>
+                      <p className="text-slate-400 text-xs">⚫ {pretos?.join(', ')}</p>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
-        )}
-        {matches?.map(match => {
-          const brancos = match.match_players?.filter(mp => mp.played_for === 'white').map(mp => mp.players?.name).filter(Boolean)
-          const pretos = match.match_players?.filter(mp => mp.played_for === 'black').map(mp => mp.players?.name).filter(Boolean)
-          const dataFormatada = new Date(match.date).toLocaleDateString('pt-PT', {
-            weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
-          })
-          const isPorRealizar = match.white_wins === null && match.black_wins === null
-          const labelJornada = match.match_number
-            ? (match.phase === 'cup' ? `Jogo ${match.match_number}` : `Jornada ${match.match_number}`)
-            : null
+        </div>
+      )}
 
-          return (
-            <div key={match.id} className={`bg-slate-800 rounded-2xl p-4 border ${isPorRealizar ? 'border-yellow-500/30' : 'border-slate-700'}`}>
-              <div className="flex items-start justify-between mb-3 gap-2">
-                <div>
-                  <p className="text-slate-400 text-xs capitalize">{dataFormatada}</p>
-                  <p className="text-slate-300 text-xs mt-0.5">
-                    Série {match.series?.id} · {match.phase === 'cup' ? '🏆 Taça' : '👑 Campeonato'}
-                    {labelJornada && <span className="text-slate-500"> · {labelJornada}</span>}
-                  </p>
+      {/* Realizados */}
+      {realizados.length > 0 && (
+        <div>
+          <h2 className="text-sm font-bold text-slate-300 mb-3">✅ Realizados ({realizados.length})</h2>
+          <div className="space-y-3">
+            {realizados.map(match => {
+              const brancos = match.match_players?.filter(mp => mp.played_for === 'white').map(mp => mp.players?.name).filter(Boolean)
+              const pretos = match.match_players?.filter(mp => mp.played_for === 'black').map(mp => mp.players?.name).filter(Boolean)
+              return (
+                <div key={match.id} className="bg-slate-800 rounded-xl p-3 border border-slate-700">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-slate-400 text-xs">
+                        {new Date(match.date).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                      <p className="text-slate-300 text-xs">
+                        Série {match.series?.id} · {match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'}
+                        {match.match_number ? ` · ${labelJornada(match)}` : ''}
+                      </p>
+                    </div>
+                    <span className="text-white font-bold text-sm bg-slate-700 px-3 py-1 rounded-lg">
+                      {match.white_wins} — {match.black_wins}
+                    </span>
+                  </div>
+                  {(brancos?.length > 0 || pretos?.length > 0) && (
+                    <div className="mt-2 pt-2 border-t border-slate-700 grid grid-cols-2 gap-2">
+                      <div>
+                        <p className="text-slate-500 text-xs mb-0.5">⚪ Brancos</p>
+                        <p className="text-slate-300 text-xs">{brancos?.join(', ')}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 text-xs mb-0.5">⚫ Pretos</p>
+                        <p className="text-slate-300 text-xs">{pretos?.join(', ')}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {isPorRealizar ? (
-                  <span className="text-yellow-400 text-xs font-medium bg-yellow-500/10 px-3 py-1.5 rounded-xl shrink-0">
-                    Por realizar
-                  </span>
-                ) : (
-                  <div className="flex items-center gap-3 bg-slate-700 rounded-xl px-4 py-2 shrink-0">
-                    <div className="text-center">
-                      <p className="text-slate-400 text-xs">⚪</p>
-                      <p className="text-2xl font-bold text-white leading-none">{match.white_wins}</p>
-                    </div>
-                    <p className="text-slate-500">—</p>
-                    <div className="text-center">
-                      <p className="text-slate-400 text-xs">⚫</p>
-                      <p className="text-2xl font-bold text-white leading-none">{match.black_wins}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {(brancos?.length > 0 || pretos?.length > 0) && (
-                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-700">
-                  <div>
-                    <p className="text-slate-400 text-xs mb-1">⚪ Brancos</p>
-                    <div className="space-y-0.5">
-                      {brancos?.map((nome, i) => (
-                        <p key={i} className="text-slate-300 text-xs">{nome}</p>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-slate-400 text-xs mb-1">⚫ Pretos</p>
-                    <div className="space-y-0.5">
-                      {pretos?.map((nome, i) => (
-                        <p key={i} className="text-slate-300 text-xs">{nome}</p>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
