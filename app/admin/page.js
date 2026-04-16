@@ -303,6 +303,7 @@ export default function Admin() {
     const { error } = await supabase.from('players').update({
       name: editJogador.name.trim(),
       team: editJogador.team,
+      birth_date: editJogador.birth_date || null,
       photo_url: photoUrl || null,
     }).eq('id', editJogador.id)
     setUploadingPhoto(false)
@@ -671,6 +672,12 @@ export default function Admin() {
                             <option value="black">⚫ Pretos</option>
                           </select>
                         </div>
+                      </div>
+                      <div>
+                        <label className="text-slate-400 text-xs mb-1 block">Data de Nascimento</label>
+                        <input type="date" value={editJogador.birth_date || ''}
+                          onChange={e => setEditJogador(p => ({ ...p, birth_date: e.target.value }))}
+                          className="w-full bg-slate-700 text-white rounded-lg px-3 py-1.5 border border-slate-600 text-sm" />
                       </div>
                       <div>
                         <label className="text-slate-400 text-xs mb-1 block">Foto</label>
