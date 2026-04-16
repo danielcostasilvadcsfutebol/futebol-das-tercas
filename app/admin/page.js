@@ -247,4 +247,227 @@ export default function Admin() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <p className="text-slate-400 text-xs mb-2">⚪ Equipa Branca</p>
-              <div className="space-y-1
+              <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                {players.filter(p => p.active).map(p => (
+                  <label key={p.id + '_w'} className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox"
+                      checked={novoJogo.white_players.includes(p.id)}
+                      onChange={() => togglePlayer(p.id, 'white')}
+                      className="rounded accent-green-500" />
+                    <span className="text-slate-300 text-xs leading-tight">
+                      {p.name}
+                      {p.team !== 'white' && <span className="text-yellow-500 text-xs"> (conv.)</span>}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-slate-400 text-xs mb-2">⚫ Equipa Preta</p>
+              <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                {players.filter(p => p.active).map(p => (
+                  <label key={p.id + '_b'} className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox"
+                      checked={novoJogo.black_players.includes(p.id)}
+                      onChange={() => togglePlayer(p.id, 'black')}
+                      className="rounded accent-green-500" />
+                    <span className="text-slate-300 text-xs leading-tight">
+                      {p.name}
+                      {p.team !== 'black' && <span className="text-yellow-500 text-xs"> (conv.)</span>}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <button onClick={submeterJogo}
+            className="w-full bg-green-600 hover:bg-green-500 active:bg-green-700 text-white rounded-xl py-3 font-bold transition">
+            Guardar Jogo
+          </button>
+        </div>
+      )}
+
+      {tab === 'jogadores' && (
+        <div className="space-y-4">
+          <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
+            <h2 className="text-lg font-bold text-white">Adicionar Jogador</h2>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-slate-400 text-xs mb-1 block">Nome</label>
+                <input value={novoJogador.name}
+                  onChange={e => setNovoJogador(p => ({ ...p, name: e.target.value }))}
+                  placeholder="Nome do jogador"
+                  className="w-full bg-slate-700 text-white rounded-xl px-3 py-2 border border-slate-600 text-sm" />
+              </div>
+              <div>
+                <label className="text-slate-400 text-xs mb-1 block">Equipa</label>
+                <select value={novoJogador.team}
+                  onChange={e => setNovoJogador(p => ({ ...p, team: e.target.value }))}
+                  className="w-full bg-slate-700 text-white rounded-xl px-3 py-2 border border-slate-600 text-sm">
+                  <option value="white">⚪ Brancos</option>
+                  <option value="black">⚫ Pretos</option>
+                </select>
+              </div>
+            </div>
+            <button onClick={submeterJogador}
+              className="w-full bg-green-600 hover:bg-green-500 text-white rounded-xl py-2.5 font-bold text-sm transition">
+              Adicionar Jogador
+            </button>
+          </div>
+
+          <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700">
+            <h2 className="text-base font-bold text-white mb-3">Gestão de Jogadores</h2>
+            <div className="space-y-2">
+              {players.map(p => (
+                <div key={p.id} className="flex items-center justify-between bg-slate-700 rounded-xl px-3 py-2.5">
+                  <div>
+                    <p className={`text-sm font-medium ${p.active ? 'text-white' : 'text-slate-500 line-through'}`}>{p.name}</p>
+                    <p className="text-xs text-slate-400">{p.team === 'white' ? '⚪ Brancos' : '⚫ Pretos'}</p>
+                  </div>
+                  <button onClick={() => toggleJogadorAtivo(p)}
+                    className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${p.active ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'}`}>
+                    {p.active ? 'Desativar' : 'Ativar'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === 'titulos' && (
+        <div className="space-y-4">
+          <button onClick={criarSerie}
+            className="w-full bg-blue-600 hover:bg-blue-500 text-white rounded-xl py-2.5 font-bold text-sm transition">
+            + Criar Nova Série
+          </button>
+
+          {series.map(s => (
+            <div key={s.id} className="bg-slate-800 rounded-2xl p-4 border border-slate-700">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold text-white">Série {s.id}</h3>
+                <div className="flex gap-2 items-center">
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${s.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-slate-600 text-slate-300'}`}>
+                    {s.status === 'active' ? 'Em curso' : 'Terminada'}
+                  </span>
+                  <button onClick={() => setEditSerie(editSerie?.id === s.id ? null : { ...s })}
+                    className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-2.5 py-1 rounded-lg transition">
+                    {editSerie?.id === s.id ? 'Cancelar' : 'Editar'}
+                  </button>
+                </div>
+              </div>
+
+              {editSerie?.id === s.id ? (
+                <div className="space-y-3">
+                  <p className="text-slate-400 text-xs font-semibold">👑 Campeonato</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-slate-500 text-xs">Vitórias Brancos</label>
+                      <input type="number" value={editSerie.league_white_wins}
+                        onChange={e => setEditSerie(p => ({ ...p, league_white_wins: e.target.value }))}
+                        className="w-full bg-slate-700 text-white rounded-lg px-3 py-1.5 border border-slate-600 text-sm mt-0.5" />
+                    </div>
+                    <div>
+                      <label className="text-slate-500 text-xs">Vitórias Pretos</label>
+                      <input type="number" value={editSerie.league_black_wins}
+                        onChange={e => setEditSerie(p => ({ ...p, league_black_wins: e.target.value }))}
+                        className="w-full bg-slate-700 text-white rounded-lg px-3 py-1.5 border border-slate-600 text-sm mt-0.5" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-slate-500 text-xs">Vencedor Campeonato</label>
+                    <select value={editSerie.league_winner || ''}
+                      onChange={e => setEditSerie(p => ({ ...p, league_winner: e.target.value || null }))}
+                      className="w-full bg-slate-700 text-white rounded-lg px-3 py-1.5 border border-slate-600 text-sm mt-0.5">
+                      <option value="">Em curso</option>
+                      <option value="white">⚪ Brancos</option>
+                      <option value="black">⚫ Pretos</option>
+                    </select>
+                  </div>
+
+                  <p className="text-slate-400 text-xs font-semibold mt-2">🏆 Taça</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-slate-500 text-xs">Vitórias Brancos</label>
+                      <input type="number" value={editSerie.cup_white_wins}
+                        onChange={e => setEditSerie(p => ({ ...p, cup_white_wins: e.target.value }))}
+                        className="w-full bg-slate-700 text-white rounded-lg px-3 py-1.5 border border-slate-600 text-sm mt-0.5" />
+                    </div>
+                    <div>
+                      <label className="text-slate-500 text-xs">Vitórias Pretos</label>
+                      <input type="number" value={editSerie.cup_black_wins}
+                        onChange={e => setEditSerie(p => ({ ...p, cup_black_wins: e.target.value }))}
+                        className="w-full bg-slate-700 text-white rounded-lg px-3 py-1.5 border border-slate-600 text-sm mt-0.5" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-slate-500 text-xs">Vencedor Taça</label>
+                    <select value={editSerie.cup_winner || ''}
+                      onChange={e => setEditSerie(p => ({ ...p, cup_winner: e.target.value || null }))}
+                      className="w-full bg-slate-700 text-white rounded-lg px-3 py-1.5 border border-slate-600 text-sm mt-0.5">
+                      <option value="">Em curso / Não disputada</option>
+                      <option value="white">⚪ Brancos</option>
+                      <option value="black">⚫ Pretos</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-slate-500 text-xs">Estado</label>
+                    <select value={editSerie.status}
+                      onChange={e => setEditSerie(p => ({ ...p, status: e.target.value }))}
+                      className="w-full bg-slate-700 text-white rounded-lg px-3 py-1.5 border border-slate-600 text-sm mt-0.5">
+                      <option value="active">Em curso</option>
+                      <option value="finished">Terminada</option>
+                    </select>
+                  </div>
+                  <button onClick={guardarSerie}
+                    className="w-full bg-green-600 hover:bg-green-500 text-white rounded-xl py-2.5 font-bold text-sm transition">
+                    Guardar Alterações
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 text-xs text-slate-400">
+                  <p>👑 Camp.: {s.league_winner ? (s.league_winner === 'white' ? '⚪ Brancos' : '⚫ Pretos') : `${s.league_white_wins}–${s.league_black_wins}`}</p>
+                  <p>🏆 Taça: {s.id === 6 ? 'Não disp.' : s.cup_winner ? (s.cup_winner === 'white' ? '⚪ Brancos' : '⚫ Pretos') : `${s.cup_white_wins}–${s.cup_black_wins}`}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'historico' && (
+        <div className="space-y-3">
+          <h2 className="text-base font-bold text-white">Últimos 20 Jogos</h2>
+          {matches.map(match => {
+            const brancos = match.match_players?.filter(mp => mp.played_for === 'white').map(mp => mp.players?.name).filter(Boolean)
+            const pretos = match.match_players?.filter(mp => mp.played_for === 'black').map(mp => mp.players?.name).filter(Boolean)
+            return (
+              <div key={match.id} className="bg-slate-800 rounded-xl p-3 border border-slate-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-slate-400 text-xs">{new Date(match.date).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                    <p className="text-slate-300 text-xs">Série {match.series?.id} · {match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white font-bold text-sm bg-slate-700 px-3 py-1 rounded-lg">{match.white_wins} — {match.black_wins}</span>
+                    <button onClick={() => apagarJogo(match.id)}
+                      className="text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30 px-2.5 py-1.5 rounded-lg transition">
+                      🗑
+                    </button>
+                  </div>
+                </div>
+                {(brancos?.length > 0 || pretos?.length > 0) && (
+                  <div className="mt-2 pt-2 border-t border-slate-700 grid grid-cols-2 gap-2">
+                    <p className="text-slate-400 text-xs">⚪ {brancos?.join(', ')}</p>
+                    <p className="text-slate-400 text-xs">⚫ {pretos?.join(', ')}</p>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
