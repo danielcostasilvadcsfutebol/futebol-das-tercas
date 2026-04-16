@@ -15,6 +15,16 @@ export default async function Jogos() {
     `)
     .order('date', { ascending: false })
 
+  const { data: matchVotacao } = await supabase
+    .from('matches')
+    .select('id, voting_open, voting_closes_at, phase, match_number, series_id')
+    .eq('voting_open', true)
+    .maybeSingle()
+
+  const horasVotacao = matchVotacao?.voting_closes_at
+    ? Math.max(0, Math.round((new Date(matchVotacao.voting_closes_at) - new Date()) / 3600000))
+    : null
+
   const labelJornada = (match) => {
     if (!match.match_number) return null
     return match.phase === 'cup' ? `Jogo ${match.match_number}` : `Jornada ${match.match_number}`
@@ -144,6 +154,32 @@ export default async function Jogos() {
             Resultados · Agendamentos
           </p>
         </div>
+
+        {/* Banner votação */}
+        {matchVotacao && (
+          <a href="/votar" style={{
+            display:'block',
+            background:'linear-gradient(135deg, rgba(28,25,23,0.98), rgba(15,10,5,0.99))',
+            border:'1px solid rgba(251,191,36,0.3)',
+            borderRadius:16,
+            padding:'12px 14px',
+            textDecoration:'none',
+            position:'relative',
+            overflow:'hidden',
+          }}>
+            <div style={{position:'absolute', right:-10, top:-10, fontSize:'4rem', opacity:0.06, transform:'rotate(15deg)'}}>⭐</div>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+              <div>
+                <div style={{fontSize:'0.6rem', color:'#f59e0b', letterSpacing:'0.12em', textTransform:'uppercase', fontWeight:700, marginBottom:2}}>⭐ MVP aberta</div>
+                <div style={{fontSize:'0.85rem', fontWeight:700, color:'white'}}>Votar no melhor em campo</div>
+                {horasVotacao !== null && <div style={{fontSize:'0.68rem', color:'#78716c', marginTop:1}}>Fecha em {horasVotacao}h</div>}
+              </div>
+              <div style={{background:'rgba(251,191,36,0.15)', border:'1px solid rgba(251,191,36,0.25)', borderRadius:10, padding:'7px 12px', fontSize:'0.72rem', fontWeight:700, color:'#f59e0b', flexShrink:0}}>
+                Votar →
+              </div>
+            </div>
+          </a>
+        )}
 
         {(!matches || matches.length === 0) && (
           <div style={{textAlign:'center', color:'#334155', fontSize:'0.85rem', padding:'40px 0'}}>
