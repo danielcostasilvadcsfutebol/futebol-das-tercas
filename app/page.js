@@ -7,7 +7,7 @@ export default async function Home() {
     .from('series')
     .select('*')
     .eq('status', 'active')
-    .single()
+    .maybeSingle()
 
   const { data: historico } = await supabase
     .from('series')
@@ -29,6 +29,8 @@ export default async function Home() {
   const horasVotacao = matchVotacao?.voting_closes_at
     ? Math.max(0, Math.round((new Date(matchVotacao.voting_closes_at) - new Date()) / 3600000))
     : null
+
+  const activeComp = series?.active_competition || 'league'
   const mostrarLiga = series && (activeComp === 'league' || activeComp === 'both')
   const mostrarTaca = series && (activeComp === 'cup' || activeComp === 'both')
 
