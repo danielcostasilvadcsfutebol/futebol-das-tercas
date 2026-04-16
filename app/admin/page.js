@@ -8,9 +8,11 @@ const PASSWORD = 'futebol2024'
 export default function Admin() {
   const [autenticado, setAutenticado] = useState(false)
   const [password, setPassword] = useState('')
+  const [tab, setTab] = useState('jogos')
   const [series, setSeries] = useState([])
   const [players, setPlayers] = useState([])
-  const [mensagem, setMensagem] = useState('')
+  const [matches, setMatches] = useState([])
+  const [mensagem, setMensagem] = useState({ tipo: '', texto: '' })
 
   const [novoJogo, setNovoJogo] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -22,19 +24,31 @@ export default function Admin() {
     black_players: [],
   })
 
+  const [novoJogador, setNovoJogador] = useState({ name: '', team: 'white' })
+  const [editSerie, setEditSerie] = useState(null)
+
   useEffect(() => {
-    if (autenticado) {
-      carregarDados()
-    }
+    if (autenticado) carregarDados()
   }, [autenticado])
 
   const carregarDados = async () => {
     const { data: s } = await supabase.from('series').select('*').order('id')
-    const { data: p } = await supabase.from('players').select('*').eq('active', true).order('name')
+    const { data: p } = await supabase.from('players').select('*').order('name')
+    const { data: m } = await supabase
+      .from('matches')
+      .select('*, series(id), match_players(played_for, players(name))')
+      .order('date', { ascending: false })
+      .limit(20)
     setSeries(s || [])
     setPlayers(p || [])
+    setMatches(m || [])
     const serieAtiva = s?.find(s => s.status === 'active')
     if (serieAtiva) setNovoJogo(prev => ({ ...prev, series_id: serieAtiva.id }))
+  }
+
+  const mostrarMensagem = (tipo, texto) => {
+    setMensagem({ tipo, texto })
+    setTimeout(() => setMensagem({ tipo: '', texto: '' }), 3000)
   }
 
   const togglePlayer = (playerId, team) => {
@@ -48,7 +62,6 @@ export default function Admin() {
   }
 
   const submeterJogo = async () => {
-    setMensagem('')
     const { data: match, error } = await supabase
       .from('matches')
       .insert({
@@ -58,21 +71,16 @@ export default function Admin() {
         white_wins: parseInt(novoJogo.white_wins),
         black_wins: parseInt(novoJogo.black_wins),
       })
-      .select()
-      .single()
+      .select().single()
 
-    if (error) { setMensagem('Erro ao guardar jogo: ' + error.message); return }
+    if (error) { mostrarMensagem('erro', 'Erro: ' + error.message); return }
 
     const matchPlayers = [
       ...novoJogo.white_players.map(id => ({ match_id: match.id, player_id: id, played_for: 'white' })),
       ...novoJogo.black_players.map(id => ({ match_id: match.id, player_id: id, played_for: 'black' })),
     ]
+    if (matchPlayers.length > 0) await supabase.from('match_players').insert(matchPlayers)
 
-    if (matchPlayers.length > 0) {
-      await supabase.from('match_players').insert(matchPlayers)
-    }
-
-    // Atualizar score da série
     const serieAtual = series.find(s => s.id === parseInt(novoJogo.series_id))
     if (serieAtual) {
       const updates = {}
@@ -91,24 +99,77 @@ export default function Admin() {
       await supabase.from('series').update(updates).eq('id', novoJogo.series_id)
     }
 
-    setMensagem('✅ Jogo guardado com sucesso!')
+    mostrarMensagem('ok', '✅ Jogo guardado!')
+    setNovoJogo(prev => ({ ...prev, white_wins: 0, black_wins: 0, white_players: [], black_players: [] }))
+    carregarDados()
+  }
+
+  const apagarJogo = async (id) => {
+    if (!confirm('Apagar este jogo?')) return
+    await supabase.from('match_players').delete().eq('match_id', id)
+    await supabase.from('matches').delete().eq('id', id)
+    mostrarMensagem('ok', '✅ Jogo apagado!')
+    carregarDados()
+  }
+
+  const submeterJogador = async () => {
+    if (!novoJogador.name.trim()) { mostrarMensagem('erro', 'Indica o nome do jogador'); return }
+    const { error } = await supabase.from('players').insert({ name: novoJogador.name.trim(), team: novoJogador.team, active: true })
+    if (error) { mostrarMensagem('erro', 'Erro: ' + error.message); return }
+    mostrarMensagem('ok', '✅ Jogador adicionado!')
+    setNovoJogador({ name: '', team: 'white' })
+    carregarDados()
+  }
+
+  const toggleJogadorAtivo = async (player) => {
+    await supabase.from('players').update({ active: !player.active }).eq('id', player.id)
+    carregarDados()
+  }
+
+  const guardarSerie = async () => {
+    const { error } = await supabase.from('series').update({
+      cup_white_wins: parseInt(editSerie.cup_white_wins) || 0,
+      cup_black_wins: parseInt(editSerie.cup_black_wins) || 0,
+      cup_winner: editSerie.cup_winner || null,
+      league_white_wins: parseInt(editSerie.league_white_wins) || 0,
+      league_black_wins: parseInt(editSerie.league_black_wins) || 0,
+      league_winner: editSerie.league_winner || null,
+      status: editSerie.status,
+    }).eq('id', editSerie.id)
+    if (error) { mostrarMensagem('erro', 'Erro: ' + error.message); return }
+    mostrarMensagem('ok', '✅ Série atualizada!')
+    setEditSerie(null)
+    carregarDados()
+  }
+
+  const criarSerie = async () => {
+    const maxId = Math.max(...series.map(s => s.id), 0)
+    const { error } = await supabase.from('series').insert({
+      id: maxId + 1,
+      status: 'active',
+      cup_white_wins: 0, cup_black_wins: 0,
+      league_white_wins: 0, league_black_wins: 0,
+    })
+    if (error) { mostrarMensagem('erro', 'Erro: ' + error.message); return }
+    mostrarMensagem('ok', '✅ Nova série criada!')
     carregarDados()
   }
 
   if (!autenticado) {
     return (
-      <div className="max-w-sm mx-auto mt-20 space-y-4">
+      <div className="max-w-xs mx-auto mt-16 space-y-4">
         <h1 className="text-2xl font-bold text-white text-center">🔒 Área Admin</h1>
         <input
           type="password"
           placeholder="Password"
           value={password}
           onChange={e => setPassword(e.target.value)}
-          className="w-full bg-slate-700 text-white rounded-xl px-4 py-3 border border-slate-600"
+          onKeyDown={e => e.key === 'Enter' && (password === PASSWORD ? setAutenticado(true) : alert('Password incorreta'))}
+          className="w-full bg-slate-700 text-white rounded-xl px-4 py-3 border border-slate-600 focus:outline-none focus:border-green-500"
         />
         <button
           onClick={() => password === PASSWORD ? setAutenticado(true) : alert('Password incorreta')}
-          className="w-full bg-green-600 hover:bg-green-500 text-white rounded-xl px-4 py-3 font-bold"
+          className="w-full bg-green-600 hover:bg-green-500 active:bg-green-700 text-white rounded-xl px-4 py-3 font-bold transition"
         >
           Entrar
         </button>
@@ -116,119 +177,74 @@ export default function Admin() {
     )
   }
 
-  const serieAtiva = series.find(s => s.status === 'active')
-  const phase = serieAtiva?.cup_winner ? 'league' : 'cup'
-
   return (
-    <div className="space-y-8 max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold text-white text-center">⚙️ Admin</h1>
+    <div className="space-y-5 pb-12">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-white">⚙️ Admin</h1>
+        <button onClick={() => setAutenticado(false)} className="text-slate-400 hover:text-white text-sm transition">Sair</button>
+      </div>
 
-      {mensagem && (
-        <div className="bg-green-500/20 border border-green-500 text-green-400 rounded-xl p-4 text-center">
-          {mensagem}
+      {mensagem.texto && (
+        <div className={`rounded-xl p-3 text-center text-sm font-medium ${mensagem.tipo === 'ok' ? 'bg-green-500/20 border border-green-500 text-green-400' : 'bg-red-500/20 border border-red-500 text-red-400'}`}>
+          {mensagem.texto}
         </div>
       )}
 
-      <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700 space-y-4">
-        <h2 className="text-xl font-bold text-white">Registar Jogo</h2>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-slate-400 text-sm">Data</label>
-            <input
-              type="date"
-              value={novoJogo.date}
-              onChange={e => setNovoJogo(prev => ({ ...prev, date: e.target.value }))}
-              className="w-full bg-slate-700 text-white rounded-xl px-4 py-2 border border-slate-600 mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-slate-400 text-sm">Fase</label>
-            <select
-              value={novoJogo.phase}
-              onChange={e => setNovoJogo(prev => ({ ...prev, phase: e.target.value }))}
-              className="w-full bg-slate-700 text-white rounded-xl px-4 py-2 border border-slate-600 mt-1"
-            >
-              <option value="cup">🏆 Taça</option>
-              <option value="league">👑 Campeonato</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-slate-400 text-sm">Vitórias ⚪ Brancos</label>
-            <input
-              type="number" min="0" max="11"
-              value={novoJogo.white_wins}
-              onChange={e => setNovoJogo(prev => ({ ...prev, white_wins: e.target.value }))}
-              className="w-full bg-slate-700 text-white rounded-xl px-4 py-2 border border-slate-600 mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-slate-400 text-sm">Vitórias ⚫ Pretos</label>
-            <input
-              type="number" min="0" max="11"
-              value={novoJogo.black_wins}
-              onChange={e => setNovoJogo(prev => ({ ...prev, black_wins: e.target.value }))}
-              className="w-full bg-slate-700 text-white rounded-xl px-4 py-2 border border-slate-600 mt-1"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-slate-400 text-sm mb-2 block">⚪ Jogadores Brancos</label>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {players.filter(p => p.team === 'white').map(p => (
-                <label key={p.id} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={novoJogo.white_players.includes(p.id)}
-                    onChange={() => togglePlayer(p.id, 'white')}
-                    className="rounded"
-                  />
-                  <span className="text-slate-300 text-sm">{p.name}</span>
-                </label>
-              ))}
-              {players.filter(p => p.team === 'black').map(p => (
-                <label key={p.id + '_guest'} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={novoJogo.white_players.includes(p.id)}
-                    onChange={() => togglePlayer(p.id, 'white')}
-                    className="rounded"
-                  />
-                  <span className="text-slate-300 text-sm">{p.name} <span className="text-yellow-500 text-xs">(convidado)</span></span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="text-slate-400 text-sm mb-2 block">⚫ Jogadores Pretos</label>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {players.filter(p => p.team === 'black').map(p => (
-                <label key={p.id} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={novoJogo.black_players.includes(p.id)}
-                    onChange={() => togglePlayer(p.id, 'black')}
-                    className="rounded"
-                  />
-                  <span className="text-slate-300 text-sm">{p.name}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <button
-          onClick={submeterJogo}
-          className="w-full bg-green-600 hover:bg-green-500 text-white rounded-xl px-4 py-3 font-bold transition"
-        >
-          Guardar Jogo
-        </button>
+      <div className="flex gap-1 bg-slate-800 rounded-xl p-1 border border-slate-700 overflow-x-auto">
+        {[
+          { id: 'jogos', label: '📅 Jogos' },
+          { id: 'jogadores', label: '👥 Jogadores' },
+          { id: 'titulos', label: '🏆 Títulos' },
+          { id: 'historico', label: '📋 Histórico' },
+        ].map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex-1 text-xs sm:text-sm py-2 px-2 rounded-lg font-medium transition whitespace-nowrap ${tab === t.id ? 'bg-green-600 text-white' : 'text-slate-400 hover:text-white'}`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
-    </div>
-  )
-}
+
+      {tab === 'jogos' && (
+        <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-4">
+          <h2 className="text-lg font-bold text-white">Registar Jogo</h2>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-slate-400 text-xs mb-1 block">Data</label>
+              <input type="date" value={novoJogo.date}
+                onChange={e => setNovoJogo(p => ({ ...p, date: e.target.value }))}
+                className="w-full bg-slate-700 text-white rounded-xl px-3 py-2 border border-slate-600 text-sm" />
+            </div>
+            <div>
+              <label className="text-slate-400 text-xs mb-1 block">Fase</label>
+              <select value={novoJogo.phase}
+                onChange={e => setNovoJogo(p => ({ ...p, phase: e.target.value }))}
+                className="w-full bg-slate-700 text-white rounded-xl px-3 py-2 border border-slate-600 text-sm">
+                <option value="cup">🏆 Taça</option>
+                <option value="league">👑 Campeonato</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-slate-400 text-xs mb-1 block">⚪ Vitórias Brancos</label>
+              <input type="number" min="0" max="20" value={novoJogo.white_wins}
+                onChange={e => setNovoJogo(p => ({ ...p, white_wins: e.target.value }))}
+                className="w-full bg-slate-700 text-white rounded-xl px-3 py-2 border border-slate-600 text-sm text-center font-bold" />
+            </div>
+            <div>
+              <label className="text-slate-400 text-xs mb-1 block">⚫ Vitórias Pretos</label>
+              <input type="number" min="0" max="20" value={novoJogo.black_wins}
+                onChange={e => setNovoJogo(p => ({ ...p, black_wins: e.target.value }))}
+                className="w-full bg-slate-700 text-white rounded-xl px-3 py-2 border border-slate-600 text-sm text-center font-bold" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-slate-400 text-xs mb-2">⚪ Equipa Branca</p>
+              <div className="space-y-1
