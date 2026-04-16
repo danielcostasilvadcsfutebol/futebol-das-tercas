@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
-const EMAIL = 'joao@gmail.com'   // ← muda para o teu e-mail
-const PIN = '9876'               // ← muda para o teu PIN
+const EMAIL = 'danielcostasilva.dcs@gmail.com'   // ← muda para o teu e-mail
+const PIN = '9663'               // ← muda para o teu PIN
 
 export default function Admin() {
   const [autenticado, setAutenticado] = useState(false)
