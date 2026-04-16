@@ -6,17 +6,7 @@ export const revalidate = 0
 export default async function Jogadores() {
   const { data: players } = await supabase
     .from('players')
-    .select(`
-      *,
-      match_players (
-        played_for,
-        matches (
-          id,
-          white_wins,
-          black_wins
-        )
-      )
-    `)
+    .select(`*, match_players(played_for, matches(id, white_wins, black_wins))`)
     .order('name', { ascending: true })
 
   const { data: mvpVotes } = await supabase
@@ -54,7 +44,44 @@ export default async function Jogadores() {
     }) || []
 
   const inativos = players?.filter(p => !p.active) || []
-  const topMvp = [...todosAtivos].sort((a, b) => b.stats.mvp - a.stats.mvp)[0]
 
-  return <JogadoresClient todosAtivos={todosAtivos} inativos={inativos} topMvp={topMvp} />
+  // Verificar se há votação aberta — se sim, não mostrar MVP
+  const { data: votacaoAberta } = await supabase
+    .from('matches')
+    .select('id')
+    .eq('voting_open', true)
+    .maybeSingle()
+
+  // Último MVP — só quando não há votação aberta
+  let ultimoMvp = null
+  if (!votacaoAberta) {
+    const { data: votosRecentes } = await supabase
+      .from('mvp_votes')
+      .select('voted_for_player_id, match_id, matches(date, phase, match_number, series_id)')
+      .order('voted_at', { ascending: false })
+
+    if (votosRecentes?.length > 0) {
+      const matchIdMaisRecente = votosRecentes[0].match_id
+      const votosDessaPartida = votosRecentes.filter(v => v.match_id === matchIdMaisRecente)
+      const contagem = {}
+      votosDessaPartida.forEach(v => {
+        contagem[v.voted_for_player_id] = (contagem[v.voted_for_player_id] || 0) + 1
+      })
+      const mvpId = Object.entries(contagem).sort((a, b) => b[1] - a[1])[0]?.[0]
+      if (mvpId) {
+        const { data: mvpPlayer } = await supabase
+          .from('players')
+          .select('id, name, photo_url, team')
+          .eq('id', mvpId)
+          .single()
+        ultimoMvp = {
+          player: mvpPlayer,
+          votos: contagem[mvpId],
+          match: votosRecentes[0].matches,
+        }
+      }
+    }
+  }
+
+  return <JogadoresClient todosAtivos={todosAtivos} inativos={inativos} ultimoMvp={ultimoMvp} />
 }
