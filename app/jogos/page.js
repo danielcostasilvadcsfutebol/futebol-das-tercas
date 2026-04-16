@@ -1,5 +1,7 @@
 import { supabase } from '../lib/supabase'
 
+export const revalidate = 0
+
 export default async function Jogos() {
   const { data: matches } = await supabase
     .from('matches')
@@ -30,7 +32,7 @@ export default async function Jogos() {
         <p className="text-slate-400 text-sm">Todas as sessões e resultados</p>
       </div>
 
-      {matches?.length === 0 && (
+      {(!matches || matches.length === 0) && (
         <div className="text-center text-slate-400 py-12">
           Ainda não há jogos registados.
         </div>
