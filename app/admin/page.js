@@ -31,6 +31,8 @@ export default function Admin() {
   })
 
   const [novoJogador, setNovoJogador] = useState({ name: '', team: 'white' })
+  const [editJogador, setEditJogador] = useState(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [editSerie, setEditSerie] = useState(null)
 
   useEffect(() => {
@@ -262,12 +264,51 @@ export default function Admin() {
     carregarDados()
   }
 
+  const uploadFoto = async (file, playerId) => {
+    const ext = file.name.split('.').pop()
+    const path = `${playerId}.${ext}`
+    const { error } = await supabase.storage.from('player-photos').upload(path, file, { upsert: true })
+    if (error) { mostrarMensagem('erro', 'Erro no upload: ' + error.message); return null }
+    const { data } = supabase.storage.from('player-photos').getPublicUrl(path)
+    return data.publicUrl + '?t=' + Date.now()
+  }
+
   const submeterJogador = async () => {
     if (!novoJogador.name.trim()) { mostrarMensagem('erro', 'Indica o nome do jogador'); return }
-    const { error } = await supabase.from('players').insert({ name: novoJogador.name.trim(), team: novoJogador.team, active: true })
+    const { data: player, error } = await supabase
+      .from('players')
+      .insert({ name: novoJogador.name.trim(), team: novoJogador.team, active: true })
+      .select().single()
     if (error) { mostrarMensagem('erro', 'Erro: ' + error.message); return }
+
+    if (novoJogador.photoFile) {
+      setUploadingPhoto(true)
+      const url = await uploadFoto(novoJogador.photoFile, player.id)
+      if (url) await supabase.from('players').update({ photo_url: url }).eq('id', player.id)
+      setUploadingPhoto(false)
+    }
+
     mostrarMensagem('ok', '✅ Jogador adicionado!')
     setNovoJogador({ name: '', team: 'white' })
+    carregarDados()
+  }
+
+  const guardarEdicaoJogador = async () => {
+    if (!editJogador.name.trim()) { mostrarMensagem('erro', 'Indica o nome'); return }
+    setUploadingPhoto(true)
+    let photoUrl = editJogador.photo_url
+    if (editJogador.photoFile) {
+      photoUrl = await uploadFoto(editJogador.photoFile, editJogador.id)
+    }
+    const { error } = await supabase.from('players').update({
+      name: editJogador.name.trim(),
+      team: editJogador.team,
+      photo_url: photoUrl || null,
+    }).eq('id', editJogador.id)
+    setUploadingPhoto(false)
+    if (error) { mostrarMensagem('erro', 'Erro: ' + error.message); return }
+    mostrarMensagem('ok', '✅ Jogador atualizado!')
+    setEditJogador(null)
     carregarDados()
   }
 
@@ -558,9 +599,26 @@ export default function Admin() {
                 </select>
               </div>
             </div>
-            <button onClick={submeterJogador}
-              className="w-full bg-green-600 hover:bg-green-500 text-white rounded-xl py-2.5 font-bold text-sm transition">
-              Adicionar Jogador
+            <div>
+              <label className="text-slate-400 text-xs mb-1 block">Foto <span className="text-slate-500">(opcional)</span></label>
+              <div className="flex items-center gap-3">
+                {novoJogador.photoPreview && (
+                  <img src={novoJogador.photoPreview} alt="" className="w-10 h-10 rounded-full object-cover border border-slate-600" />
+                )}
+                <label className="flex-1 cursor-pointer bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl px-3 py-2 text-xs text-center border border-slate-600 border-dashed transition">
+                  {novoJogador.photoFile ? novoJogador.photoFile.name : '📷 Escolher foto'}
+                  <input type="file" accept="image/*" className="hidden"
+                    onChange={e => {
+                      const file = e.target.files[0]
+                      if (!file) return
+                      setNovoJogador(p => ({ ...p, photoFile: file, photoPreview: URL.createObjectURL(file) }))
+                    }} />
+                </label>
+              </div>
+            </div>
+            <button onClick={submeterJogador} disabled={uploadingPhoto}
+              className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white rounded-xl py-2.5 font-bold text-sm transition">
+              {uploadingPhoto ? 'A fazer upload...' : 'Adicionar Jogador'}
             </button>
           </div>
 
@@ -568,15 +626,81 @@ export default function Admin() {
             <h2 className="text-base font-bold text-white mb-3">Gestão de Jogadores</h2>
             <div className="space-y-2">
               {players.map(p => (
-                <div key={p.id} className="flex items-center justify-between bg-slate-700 rounded-xl px-3 py-2.5">
-                  <div>
-                    <p className={`text-sm font-medium ${p.active ? 'text-white' : 'text-slate-500 line-through'}`}>{p.name}</p>
-                    <p className="text-xs text-slate-400">{p.team === 'white' ? '⚪ Brancos' : '⚫ Pretos'}</p>
+                <div key={p.id}>
+                  <div className="flex items-center justify-between bg-slate-700 rounded-xl px-3 py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      {p.photo_url
+                        ? <img src={p.photo_url} alt={p.name} className="w-8 h-8 rounded-full object-cover border border-slate-600 shrink-0" />
+                        : <div className="w-8 h-8 rounded-full bg-slate-600 border border-slate-500 flex items-center justify-center text-xs text-slate-400 shrink-0 font-bold">
+                            {p.name.charAt(0).toUpperCase()}
+                          </div>
+                      }
+                      <div>
+                        <p className={`text-sm font-medium ${p.active ? 'text-white' : 'text-slate-500 line-through'}`}>{p.name}</p>
+                        <p className="text-xs text-slate-400">{p.team === 'white' ? '⚪ Brancos' : '⚫ Pretos'}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button onClick={() => setEditJogador(editJogador?.id === p.id ? null : { ...p, photoFile: null, photoPreview: null })}
+                        className="text-xs bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 px-2.5 py-1.5 rounded-lg transition">
+                        ✏️
+                      </button>
+                      <button onClick={() => toggleJogadorAtivo(p)}
+                        className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${p.active ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'}`}>
+                        {p.active ? 'Desativar' : 'Ativar'}
+                      </button>
+                    </div>
                   </div>
-                  <button onClick={() => toggleJogadorAtivo(p)}
-                    className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${p.active ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'}`}>
-                    {p.active ? 'Desativar' : 'Ativar'}
-                  </button>
+
+                  {/* Painel de edição inline */}
+                  {editJogador?.id === p.id && (
+                    <div className="bg-slate-700/50 rounded-xl p-3 mt-1 space-y-3 border border-blue-500/20">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-slate-400 text-xs mb-1 block">Nome</label>
+                          <input value={editJogador.name}
+                            onChange={e => setEditJogador(p => ({ ...p, name: e.target.value }))}
+                            className="w-full bg-slate-700 text-white rounded-lg px-3 py-1.5 border border-slate-600 text-sm" />
+                        </div>
+                        <div>
+                          <label className="text-slate-400 text-xs mb-1 block">Equipa</label>
+                          <select value={editJogador.team}
+                            onChange={e => setEditJogador(p => ({ ...p, team: e.target.value }))}
+                            className="w-full bg-slate-700 text-white rounded-lg px-3 py-1.5 border border-slate-600 text-sm">
+                            <option value="white">⚪ Brancos</option>
+                            <option value="black">⚫ Pretos</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-slate-400 text-xs mb-1 block">Foto</label>
+                        <div className="flex items-center gap-3">
+                          {(editJogador.photoPreview || editJogador.photo_url) && (
+                            <img src={editJogador.photoPreview || editJogador.photo_url} alt="" className="w-10 h-10 rounded-full object-cover border border-slate-600 shrink-0" />
+                          )}
+                          <label className="flex-1 cursor-pointer bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg px-3 py-2 text-xs text-center border border-slate-600 border-dashed transition">
+                            {editJogador.photoFile ? editJogador.photoFile.name : '📷 Trocar foto'}
+                            <input type="file" accept="image/*" className="hidden"
+                              onChange={e => {
+                                const file = e.target.files[0]
+                                if (!file) return
+                                setEditJogador(p => ({ ...p, photoFile: file, photoPreview: URL.createObjectURL(file) }))
+                              }} />
+                          </label>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={guardarEdicaoJogador} disabled={uploadingPhoto}
+                          className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white rounded-lg py-2 font-bold text-sm transition">
+                          {uploadingPhoto ? 'A guardar...' : 'Guardar'}
+                        </button>
+                        <button onClick={() => setEditJogador(null)}
+                          className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg py-2 font-bold text-sm transition">
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
