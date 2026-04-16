@@ -30,6 +30,39 @@ export default async function Home() {
     ? Math.max(0, Math.round((new Date(matchVotacao.voting_closes_at) - new Date()) / 3600000))
     : null
 
+  // Último MVP — jogo mais recente com votos e votação fechada
+  let ultimoMvp = null
+  if (!matchVotacao) {
+    const { data: votosRecentes } = await supabase
+      .from('mvp_votes')
+      .select('voted_for_player_id, match_id')
+      .order('voted_at', { ascending: false })
+
+    if (votosRecentes?.length > 0) {
+      // Contar votos por jogador no jogo mais recente
+      const matchIdMaisRecente = votosRecentes[0].match_id
+      const votosDessaPartida = votosRecentes.filter(v => v.match_id === matchIdMaisRecente)
+      const contagem = {}
+      votosDessaPartida.forEach(v => {
+        contagem[v.voted_for_player_id] = (contagem[v.voted_for_player_id] || 0) + 1
+      })
+      const mvpId = Object.entries(contagem).sort((a, b) => b[1] - a[1])[0]?.[0]
+      if (mvpId) {
+        const { data: mvpPlayer } = await supabase
+          .from('players')
+          .select('id, name, photo_url, team')
+          .eq('id', mvpId)
+          .single()
+        const { data: mvpMatch } = await supabase
+          .from('matches')
+          .select('date, phase, match_number, series_id')
+          .eq('id', matchIdMaisRecente)
+          .single()
+        ultimoMvp = { player: mvpPlayer, votos: contagem[mvpId], match: mvpMatch }
+      }
+    }
+  }
+
   const activeComp = series?.active_competition || 'league'
   const mostrarLiga = series && (activeComp === 'league' || activeComp === 'both')
   const mostrarTaca = series && (activeComp === 'cup' || activeComp === 'both')
@@ -132,6 +165,77 @@ export default async function Home() {
             Jogos · Resultados · Títulos
           </p>
         </div>
+
+        {/* Banner votação MVP */}
+        {matchVotacao && (
+          <a href="/votar" style={{
+            display:'block',
+            background:'linear-gradient(135deg, rgba(28,25,23,0.98), rgba(15,10,5,0.99))',
+            border:'1px solid rgba(251,191,36,0.3)',
+            borderRadius:16,
+            padding:'14px 16px',
+            textDecoration:'none',
+            position:'relative',
+            overflow:'hidden',
+          }}>
+            <div style={{position:'absolute', right:-10, top:-10, fontSize:'5rem', opacity:0.06, transform:'rotate(15deg)'}}>⭐</div>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+              <div>
+                <div style={{fontSize:'0.62rem', color:'#f59e0b', letterSpacing:'0.12em', textTransform:'uppercase', fontWeight:700, marginBottom:3}}>
+                  ⭐ Votação MVP aberta
+                </div>
+                <div style={{fontSize:'0.9rem', fontWeight:700, color:'white'}}>
+                  Vota no melhor em campo
+                </div>
+                {horasVotacao !== null && (
+                  <div style={{fontSize:'0.7rem', color:'#78716c', marginTop:2}}>
+                    Fecha em {horasVotacao}h
+                  </div>
+                )}
+              </div>
+              <div style={{background:'rgba(251,191,36,0.15)', border:'1px solid rgba(251,191,36,0.25)', borderRadius:10, padding:'8px 14px', fontSize:'0.75rem', fontWeight:700, color:'#f59e0b', flexShrink:0}}>
+                Votar →
+              </div>
+            </div>
+          </a>
+        )}
+
+        {/* Último MVP — só aparece quando não há votação aberta */}
+        {!matchVotacao && ultimoMvp && (
+          <div style={{
+            background:'linear-gradient(135deg, #1c1917 0%, #0f172a 100%)',
+            border:'1px solid rgba(251,191,36,0.2)',
+            borderRadius:16,
+            padding:'14px 16px',
+            position:'relative',
+            overflow:'hidden',
+          }}>
+            <div style={{position:'absolute', right:-8, top:-8, fontSize:'5rem', opacity:0.05, transform:'rotate(15deg)', color:'#f59e0b'}}>★</div>
+            <div style={{fontSize:'0.62rem', color:'#f59e0b', letterSpacing:'0.12em', textTransform:'uppercase', fontWeight:700, marginBottom:10}}>
+              ⭐ MVP do último jogo
+            </div>
+            <div style={{display:'flex', alignItems:'center', gap:12}}>
+              {ultimoMvp.player.photo_url
+                ? <img src={ultimoMvp.player.photo_url} alt={ultimoMvp.player.name} style={{width:52, height:52, borderRadius:'50%', objectFit:'cover', flexShrink:0, border:'2px solid rgba(251,191,36,0.35)', boxShadow:'0 0 20px rgba(251,191,36,0.15)'}} />
+                : <div style={{width:52, height:52, borderRadius:'50%', flexShrink:0, background:'rgba(251,191,36,0.08)', border:'2px solid rgba(251,191,36,0.25)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Bebas Neue',sans-serif", fontSize:'1.4rem', color:'#f59e0b'}}>
+                    {ultimoMvp.player.name.charAt(0).toUpperCase()}
+                  </div>
+              }
+              <div style={{flex:1}}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif", fontSize:'1.4rem', color:'white', lineHeight:1, letterSpacing:'0.04em'}}>
+                  {ultimoMvp.player.name}
+                </div>
+                <div style={{fontSize:'0.7rem', color:'#78716c', marginTop:3}}>
+                  {ultimoMvp.votos} {ultimoMvp.votos === 1 ? 'voto' : 'votos'} · {ultimoMvp.match?.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'} · Série {ultimoMvp.match?.series_id}
+                  {ultimoMvp.match?.match_number ? ` · ${ultimoMvp.match.phase === 'cup' ? `Jogo ${ultimoMvp.match.match_number}` : `Jorn. ${ultimoMvp.match.match_number}`}` : ''}
+                </div>
+              </div>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif", fontSize:'2.5rem', color:'#f59e0b', lineHeight:1, textShadow:'0 0 20px rgba(251,191,36,0.3)'}}>
+                {ultimoMvp.votos}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Série ativa */}
         {series && (
@@ -287,49 +391,6 @@ export default async function Home() {
               </div>
             )}
           </div>
-        )}
-
-        {/* Banner votação MVP */}
-        {matchVotacao && (
-          <a href="/votar" style={{
-            display:'block',
-            background:'linear-gradient(135deg, rgba(28,25,23,0.98), rgba(15,10,5,0.99))',
-            border:'1px solid rgba(251,191,36,0.3)',
-            borderRadius:16,
-            padding:'14px 16px',
-            textDecoration:'none',
-            position:'relative',
-            overflow:'hidden',
-          }}>
-            <div style={{position:'absolute', right:-10, top:-10, fontSize:'5rem', opacity:0.06, transform:'rotate(15deg)'}}>⭐</div>
-            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
-              <div>
-                <div style={{fontSize:'0.62rem', color:'#f59e0b', letterSpacing:'0.12em', textTransform:'uppercase', fontWeight:700, marginBottom:3}}>
-                  ⭐ Votação MVP aberta
-                </div>
-                <div style={{fontSize:'0.9rem', fontWeight:700, color:'white'}}>
-                  Vota no melhor em campo
-                </div>
-                {horasVotacao !== null && (
-                  <div style={{fontSize:'0.7rem', color:'#78716c', marginTop:2}}>
-                    Fecha em {horasVotacao}h
-                  </div>
-                )}
-              </div>
-              <div style={{
-                background:'rgba(251,191,36,0.15)',
-                border:'1px solid rgba(251,191,36,0.25)',
-                borderRadius:10,
-                padding:'8px 14px',
-                fontSize:'0.75rem',
-                fontWeight:700,
-                color:'#f59e0b',
-                flexShrink:0,
-              }}>
-                Votar →
-              </div>
-            </div>
-          </a>
         )}
 
         {/* Links rápidos */}
