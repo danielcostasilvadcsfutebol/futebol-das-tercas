@@ -31,25 +31,24 @@ export default async function Jogadores() {
   const pretos = players?.filter(p => p.team === 'black') || []
 
   return (
-    <div className="space-y-8">
-      <div className="text-center py-8">
-        <h1 className="text-4xl font-bold text-white mb-2">👥 Jogadores</h1>
-        <p className="text-slate-400">Estatísticas individuais de todos os jogadores</p>
+    <div className="space-y-6 pb-8">
+      <div className="text-center py-4">
+        <h1 className="text-3xl font-bold text-white mb-1">👥 Jogadores</h1>
+        <p className="text-slate-400 text-sm">Estatísticas individuais</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-8">
-        {/* Equipa Branca */}
+      <div className="space-y-6">
         <div>
-          <h2 className="text-xl font-bold text-white mb-4">⚪ Equipa Branca</h2>
-          <div className="space-y-3">
+          <h2 className="text-base font-bold text-white mb-3">⚪ Equipa Branca</h2>
+          <div className="space-y-2">
             {brancos.map(player => {
               const { jogos, vitorias } = calcStats(player)
               return (
-                <div key={player.id} className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                  <p className="text-white font-semibold">{player.name}</p>
-                  <div className="flex gap-4 mt-2">
-                    <p className="text-slate-400 text-sm">Jogos: <span className="text-white">{jogos}</span></p>
-                    <p className="text-slate-400 text-sm">Vitórias: <span className="text-white">{vitorias}</span></p>
+                <div key={player.id} className="bg-slate-800 rounded-xl p-3 border border-slate-700 flex items-center justify-between">
+                  <p className="text-white font-semibold text-sm">{player.name}</p>
+                  <div className="flex gap-4 shrink-0">
+                    <p className="text-slate-400 text-xs">Jogos: <span className="text-white font-bold">{jogos}</span></p>
+                    <p className="text-slate-400 text-xs">Vitórias: <span className="text-white font-bold">{vitorias}</span></p>
                   </div>
                 </div>
               )
@@ -57,18 +56,17 @@ export default async function Jogadores() {
           </div>
         </div>
 
-        {/* Equipa Preta */}
         <div>
-          <h2 className="text-xl font-bold text-white mb-4">⚫ Equipa Preta</h2>
-          <div className="space-y-3">
+          <h2 className="text-base font-bold text-white mb-3">⚫ Equipa Preta</h2>
+          <div className="space-y-2">
             {pretos.map(player => {
               const { jogos, vitorias } = calcStats(player)
               return (
-                <div key={player.id} className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                  <p className="text-white font-semibold">{player.name}</p>
-                  <div className="flex gap-4 mt-2">
-                    <p className="text-slate-400 text-sm">Jogos: <span className="text-white">{jogos}</span></p>
-                    <p className="text-slate-400 text-sm">Vitórias: <span className="text-white">{vitorias}</span></p>
+                <div key={player.id} className="bg-slate-800 rounded-xl p-3 border border-slate-700 flex items-center justify-between">
+                  <p className="text-white font-semibold text-sm">{player.name}</p>
+                  <div className="flex gap-4 shrink-0">
+                    <p className="text-slate-400 text-xs">Jogos: <span className="text-white font-bold">{jogos}</span></p>
+                    <p className="text-slate-400 text-xs">Vitórias: <span className="text-white font-bold">{vitorias}</span></p>
                   </div>
                 </div>
               )
