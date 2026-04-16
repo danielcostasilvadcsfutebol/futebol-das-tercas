@@ -335,63 +335,6 @@ export default async function Home() {
           </div>
         )}
 
-        {/* Palmarés */}
-        {(historico?.length > 0) && (
-          <div className="palmares-card">
-            <div style={{padding:'12px 16px 10px', borderBottom:'1px solid rgba(255,255,255,0.05)', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
-              <div className="display-font" style={{fontSize:'1.05rem', color:'white', letterSpacing:'0.08em'}}>Palmarés</div>
-              <div style={{fontSize:'0.62rem', color:'#334155', letterSpacing:'0.1em', textTransform:'uppercase'}}>{historico.length} séries</div>
-            </div>
-
-            {/* Campeonato */}
-            <div style={{padding:'10px 16px', borderBottom: (totalTacaBrancos + totalTacaPretos) > 0 ? '1px solid rgba(255,255,255,0.04)' : 'none'}}>
-              <div style={{fontSize:'0.62rem', color:'#475569', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8, fontWeight:600}}>
-                👑 Campeonato
-              </div>
-              <div style={{display:'flex'}}>
-                <div className="team-col team-col-white">
-                  <div style={{fontSize:'0.68rem', color:'#94a3b8', marginBottom:4}}>⚪ Brancos</div>
-                  <div className="trophy-count">{totalCampBrancos}</div>
-                  <div className="trophy-label">títulos</div>
-                </div>
-                <div className="team-col">
-                  <div style={{fontSize:'0.68rem', color:'#64748b', marginBottom:4}}>⚫ Pretos</div>
-                  <div className="trophy-count">{totalCampPretos}</div>
-                  <div className="trophy-label">títulos</div>
-                </div>
-              </div>
-              {(totalCampBrancos + totalCampPretos) > 0 && (
-                <div className="comp-bar-bg">
-                  <div className="comp-bar-fill" style={{width:`${Math.round((totalCampBrancos/(totalCampBrancos+totalCampPretos))*100)}%`}} />
-                </div>
-              )}
-            </div>
-
-            {/* Taça — só aparece se houver títulos */}
-            {(totalTacaBrancos + totalTacaPretos) > 0 && (
-              <div style={{padding:'10px 16px'}}>
-                <div style={{fontSize:'0.62rem', color:'#475569', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8, fontWeight:600}}>
-                  🏆 Taça
-                </div>
-                <div style={{display:'flex'}}>
-                  <div className="team-col team-col-white">
-                    <div style={{fontSize:'0.68rem', color:'#94a3b8', marginBottom:4}}>⚪ Brancos</div>
-                    <div className="trophy-count">{totalTacaBrancos}</div>
-                    <div className="trophy-label">títulos</div>
-                  </div>
-                  <div className="team-col">
-                    <div style={{fontSize:'0.68rem', color:'#64748b', marginBottom:4}}>⚫ Pretos</div>
-                    <div className="trophy-count">{totalTacaPretos}</div>
-                    <div className="trophy-label">títulos</div>
-                  </div>
-                </div>
-                <div className="comp-bar-bg">
-                  <div className="comp-bar-fill" style={{width:`${Math.round((totalTacaBrancos/(totalTacaBrancos+totalTacaPretos))*100)}%`}} />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Links rápidos */}
         <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8}}>
