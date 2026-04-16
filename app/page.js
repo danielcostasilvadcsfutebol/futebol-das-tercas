@@ -18,57 +18,67 @@ export default async function Home() {
   const totalCampBrancos = historico?.filter(s => s.league_winner === 'white').length || 0
   const totalCampPretos = historico?.filter(s => s.league_winner === 'black').length || 0
 
+  // Série 6: taça não disputada
+  const isSerie6 = series?.id === 6
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 pb-8">
       {/* Cabeçalho */}
-      <div className="text-center py-8">
-        <h1 className="text-4xl font-bold text-white mb-2">⚽ Futebol das Terças</h1>
-        <p className="text-slate-400">Acompanha todos os jogos, resultados e títulos</p>
+      <div className="text-center py-6">
+        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-1">⚽ Futebol das Terças</h1>
+        <p className="text-slate-400 text-sm">Jogos, resultados e títulos</p>
       </div>
 
       {/* Série atual */}
       {series && (
-        <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700">
-          <h2 className="text-xl font-bold text-white mb-4">🔥 Série {series.id} — Em curso</h2>
-          <div className="grid grid-cols-2 gap-4">
-            {/* Taça */}
-            <div className="bg-slate-700 rounded-xl p-4">
-              <h3 className="text-slate-400 text-sm mb-3">🏆 Taça</h3>
-              {series.cup_winner ? (
-                <p className="text-green-400 font-bold">
-                  Vencedor: {series.cup_winner === 'white' ? '⚪ Brancos' : '⚫ Pretos'}
+        <div className="bg-slate-800 rounded-2xl p-4 sm:p-6 border border-slate-700">
+          <h2 className="text-lg sm:text-xl font-bold text-white mb-4">
+            🔥 Série {series.id} — Em curso
+          </h2>
+
+          {/* Campeonato à esquerda, Taça à direita */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Campeonato — ESQUERDA */}
+            <div className="bg-slate-700 rounded-xl p-3 sm:p-4">
+              <h3 className="text-slate-400 text-xs sm:text-sm font-semibold mb-3">👑 Campeonato</h3>
+              {series.league_winner ? (
+                <p className="text-green-400 font-bold text-sm">
+                  🏅 {series.league_winner === 'white' ? '⚪ Brancos' : '⚫ Pretos'}
                 </p>
               ) : (
                 <div className="flex justify-around items-center">
                   <div className="text-center">
-                    <p className="text-slate-300 text-sm">⚪ Brancos</p>
-                    <p className="text-4xl font-bold text-white">{series.cup_white_wins}</p>
+                    <p className="text-slate-300 text-xs">⚪</p>
+                    <p className="text-3xl sm:text-4xl font-bold text-white">{series.league_white_wins}</p>
                   </div>
-                  <p className="text-slate-500 text-2xl">—</p>
+                  <p className="text-slate-500 text-xl">—</p>
                   <div className="text-center">
-                    <p className="text-slate-300 text-sm">⚫ Pretos</p>
-                    <p className="text-4xl font-bold text-white">{series.cup_black_wins}</p>
+                    <p className="text-slate-300 text-xs">⚫</p>
+                    <p className="text-3xl sm:text-4xl font-bold text-white">{series.league_black_wins}</p>
                   </div>
                 </div>
               )}
             </div>
-            {/* Campeonato */}
-            <div className="bg-slate-700 rounded-xl p-4">
-              <h3 className="text-slate-400 text-sm mb-3">👑 Campeonato</h3>
-              {series.league_winner ? (
-                <p className="text-green-400 font-bold">
-                  Vencedor: {series.league_winner === 'white' ? '⚪ Brancos' : '⚫ Pretos'}
+
+            {/* Taça — DIREITA */}
+            <div className="bg-slate-700 rounded-xl p-3 sm:p-4">
+              <h3 className="text-slate-400 text-xs sm:text-sm font-semibold mb-3">🏆 Taça</h3>
+              {isSerie6 ? (
+                <p className="text-slate-500 text-sm italic">Não disputada</p>
+              ) : series.cup_winner ? (
+                <p className="text-green-400 font-bold text-sm">
+                  🏅 {series.cup_winner === 'white' ? '⚪ Brancos' : '⚫ Pretos'}
                 </p>
               ) : (
                 <div className="flex justify-around items-center">
                   <div className="text-center">
-                    <p className="text-slate-300 text-sm">⚪ Brancos</p>
-                    <p className="text-4xl font-bold text-white">{series.league_white_wins}</p>
+                    <p className="text-slate-300 text-xs">⚪</p>
+                    <p className="text-3xl sm:text-4xl font-bold text-white">{series.cup_white_wins}</p>
                   </div>
-                  <p className="text-slate-500 text-2xl">—</p>
+                  <p className="text-slate-500 text-xl">—</p>
                   <div className="text-center">
-                    <p className="text-slate-300 text-sm">⚫ Pretos</p>
-                    <p className="text-4xl font-bold text-white">{series.league_black_wins}</p>
+                    <p className="text-slate-300 text-xs">⚫</p>
+                    <p className="text-3xl sm:text-4xl font-bold text-white">{series.cup_black_wins}</p>
                   </div>
                 </div>
               )}
@@ -78,17 +88,40 @@ export default async function Home() {
       )}
 
       {/* Palmarés */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700 text-center">
-          <p className="text-slate-400 mb-1">⚪ Brancos</p>
-          <p className="text-slate-300 text-sm">🏆 Taças: <span className="text-white font-bold">{totalBrancos}</span></p>
-          <p className="text-slate-300 text-sm">👑 Campeonatos: <span className="text-white font-bold">{totalCampBrancos}</span></p>
+      <div className="bg-slate-800 rounded-2xl p-4 sm:p-6 border border-slate-700">
+        <h2 className="text-lg font-bold text-white mb-4">🥇 Palmarés</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-slate-700 rounded-xl p-3 sm:p-4 text-center">
+            <p className="text-white font-bold text-base mb-2">⚪ Brancos</p>
+            <div className="space-y-1">
+              <p className="text-slate-300 text-sm">👑 Camp.: <span className="text-white font-bold">{totalCampBrancos}</span></p>
+              <p className="text-slate-300 text-sm">🏆 Taças: <span className="text-white font-bold">{totalBrancos}</span></p>
+            </div>
+          </div>
+          <div className="bg-slate-700 rounded-xl p-3 sm:p-4 text-center">
+            <p className="text-white font-bold text-base mb-2">⚫ Pretos</p>
+            <div className="space-y-1">
+              <p className="text-slate-300 text-sm">👑 Camp.: <span className="text-white font-bold">{totalCampPretos}</span></p>
+              <p className="text-slate-300 text-sm">🏆 Taças: <span className="text-white font-bold">{totalPretos}</span></p>
+            </div>
+          </div>
         </div>
-        <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700 text-center">
-          <p className="text-slate-400 mb-1">⚫ Pretos</p>
-          <p className="text-slate-300 text-sm">🏆 Taças: <span className="text-white font-bold">{totalPretos}</span></p>
-          <p className="text-slate-300 text-sm">👑 Campeonatos: <span className="text-white font-bold">{totalCampPretos}</span></p>
-        </div>
+      </div>
+
+      {/* Links rápidos — útil no mobile */}
+      <div className="grid grid-cols-3 gap-3">
+        <a href="/jogos" className="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-xl p-3 text-center transition">
+          <p className="text-2xl mb-1">📅</p>
+          <p className="text-white text-xs sm:text-sm font-medium">Jogos</p>
+        </a>
+        <a href="/jogadores" className="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-xl p-3 text-center transition">
+          <p className="text-2xl mb-1">👥</p>
+          <p className="text-white text-xs sm:text-sm font-medium">Jogadores</p>
+        </a>
+        <a href="/titulos" className="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-xl p-3 text-center transition">
+          <p className="text-2xl mb-1">🏆</p>
+          <p className="text-white text-xs sm:text-sm font-medium">Títulos</p>
+        </a>
       </div>
     </div>
   )
