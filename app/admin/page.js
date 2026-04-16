@@ -240,7 +240,7 @@ export default function Admin() {
     if (!votacaoMvp.novoVoto) { mostrarMensagem('erro', 'Seleciona um jogador'); return }
     const { error } = await supabase.from('mvp_votes').insert({
       match_id: votacaoMvp.matchId,
-      voted_for_player_id: parseInt(votacaoMvp.novoVoto),
+      voted_for_player_id: votacaoMvp.novoVoto,
     })
     if (error) { mostrarMensagem('erro', 'Erro: ' + error.message); return }
     mostrarMensagem('ok', '✅ Voto registado!')
