@@ -26,97 +26,263 @@ export default async function Jogos() {
     .sort((a, b) => new Date(b.date) - new Date(a.date)) ?? []
 
   return (
-    <div className="space-y-6 pb-8">
-      <div className="text-center py-4">
-        <h1 className="text-3xl font-bold text-white mb-1">📅 Jogos</h1>
-        <p className="text-slate-400 text-sm">Todas as sessões e resultados</p>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600;700&display=swap');
+        .jogos-page { font-family: 'DM Sans', sans-serif; }
+        .display-font { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.04em; }
+
+        .section-title {
+          font-family: 'Bebas Neue', sans-serif;
+          font-size: 0.95rem;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          margin-bottom: 10px;
+          padding-left: 2px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .match-card {
+          background: linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.98));
+          border-radius: 16px;
+          overflow: hidden;
+          position: relative;
+        }
+        .match-card::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; right: 0;
+          height: 2px;
+        }
+        .match-card-pending::before {
+          background: linear-gradient(90deg, transparent, rgba(251,191,36,0.4), transparent);
+        }
+        .match-card-done::before {
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+        }
+
+        .match-score {
+          font-family: 'Bebas Neue', sans-serif;
+          font-size: 2rem;
+          line-height: 1;
+          color: white;
+        }
+        .match-score-sep {
+          font-family: 'Bebas Neue', sans-serif;
+          font-size: 1.2rem;
+          color: #1e293b;
+          padding: 0 4px;
+        }
+
+        .team-name-row {
+          display: flex;
+          gap: 4px;
+          align-items: center;
+          font-size: 0.6rem;
+          color: #475569;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          margin-bottom: 2px;
+        }
+
+        .badge-comp {
+          font-size: 0.58rem;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          padding: 2px 6px;
+          border-radius: 99px;
+        }
+        .badge-league { background: rgba(251,191,36,0.1); color: #f59e0b; border: 1px solid rgba(251,191,36,0.15); }
+        .badge-cup    { background: rgba(99,102,241,0.1); color: #818cf8; border: 1px solid rgba(99,102,241,0.15); }
+
+        .pending-pill {
+          font-size: 0.62rem;
+          font-weight: 700;
+          color: #f59e0b;
+          background: rgba(251,191,36,0.08);
+          border: 1px solid rgba(251,191,36,0.15);
+          border-radius: 8px;
+          padding: 4px 10px;
+          letter-spacing: 0.04em;
+        }
+
+        .players-row {
+          border-top: 1px solid rgba(255,255,255,0.05);
+          margin-top: 10px;
+          padding-top: 10px;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+        }
+        .players-label {
+          font-size: 0.58rem;
+          color: #334155;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          margin-bottom: 3px;
+          font-weight: 600;
+        }
+        .players-names {
+          font-size: 0.72rem;
+          color: #64748b;
+          line-height: 1.5;
+        }
+
+        .winner-white { color: rgba(226,232,240,0.9); }
+        .winner-black { color: rgba(100,116,139,0.9); }
+      `}</style>
+
+      <div className="jogos-page space-y-5 pb-10">
+
+        {/* Header */}
+        <div style={{paddingTop:10, paddingBottom:2}}>
+          <h1 className="display-font" style={{fontSize:'2.2rem', color:'white', lineHeight:1, marginBottom:2}}>Jogos</h1>
+          <p style={{fontSize:'0.68rem', color:'#334155', letterSpacing:'0.08em', textTransform:'uppercase', fontWeight:600}}>
+            Resultados · Agendamentos
+          </p>
+        </div>
+
+        {(!matches || matches.length === 0) && (
+          <div style={{textAlign:'center', color:'#334155', fontSize:'0.85rem', padding:'40px 0'}}>
+            Ainda não há jogos registados.
+          </div>
+        )}
+
+        {/* Agendados */}
+        {agendados.length > 0 && (
+          <div>
+            <div className="section-title" style={{color:'#f59e0b'}}>
+              <span>Agendados</span>
+              <span style={{fontSize:'0.7rem', color:'#78350f', background:'rgba(251,191,36,0.08)', border:'1px solid rgba(251,191,36,0.12)', borderRadius:99, padding:'1px 7px', fontFamily:'DM Sans'}}>
+                {agendados.length}
+              </span>
+            </div>
+            <div style={{display:'flex', flexDirection:'column', gap:8}}>
+              {agendados.map(match => {
+                const brancos = match.match_players?.filter(mp => mp.played_for === 'white').map(mp => mp.players?.name).filter(Boolean)
+                const pretos  = match.match_players?.filter(mp => mp.played_for === 'black').map(mp => mp.players?.name).filter(Boolean)
+                return (
+                  <div key={match.id} className="match-card match-card-pending" style={{
+                    border: '1px solid rgba(251,191,36,0.12)',
+                    padding: '12px 14px',
+                  }}>
+                    <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+                      <div>
+                        <div style={{fontSize:'0.82rem', fontWeight:600, color:'#cbd5e1', marginBottom:3}}>
+                          {new Date(match.date).toLocaleDateString('pt-PT', { weekday:'short', day:'numeric', month:'short' })}
+                        </div>
+                        <div style={{display:'flex', alignItems:'center', gap:5, flexWrap:'wrap'}}>
+                          <span className={`badge-comp ${match.phase === 'cup' ? 'badge-cup' : 'badge-league'}`}>
+                            {match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'}
+                          </span>
+                          <span style={{fontSize:'0.62rem', color:'#334155'}}>Série {match.series?.id}</span>
+                          {match.match_number && (
+                            <span style={{fontSize:'0.62rem', color:'#334155'}}>{labelJornada(match)}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="pending-pill">Por realizar</div>
+                    </div>
+                    {(brancos?.length > 0 || pretos?.length > 0) && (
+                      <div className="players-row">
+                        <div>
+                          <div className="players-label">⚪ Brancos</div>
+                          <div className="players-names">{brancos?.join(', ') || '—'}</div>
+                        </div>
+                        <div>
+                          <div className="players-label">⚫ Pretos</div>
+                          <div className="players-names">{pretos?.join(', ') || '—'}</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Realizados */}
+        {realizados.length > 0 && (
+          <div>
+            <div className="section-title" style={{color:'#64748b'}}>
+              <span>Realizados</span>
+              <span style={{fontSize:'0.7rem', color:'#1e293b', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:99, padding:'1px 7px', fontFamily:'DM Sans'}}>
+                {realizados.length}
+              </span>
+            </div>
+            <div style={{display:'flex', flexDirection:'column', gap:8}}>
+              {realizados.map(match => {
+                const brancos = match.match_players?.filter(mp => mp.played_for === 'white').map(mp => mp.players?.name).filter(Boolean)
+                const pretos  = match.match_players?.filter(mp => mp.played_for === 'black').map(mp => mp.players?.name).filter(Boolean)
+                const brancosGanham = match.white_wins > match.black_wins
+                const pretosGanham  = match.black_wins > match.white_wins
+                return (
+                  <div key={match.id} className="match-card match-card-done" style={{
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    padding: '12px 14px',
+                  }}>
+                    {/* Topo: data + badges */}
+                    <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10}}>
+                      <div style={{display:'flex', alignItems:'center', gap:5, flexWrap:'wrap'}}>
+                        <span className={`badge-comp ${match.phase === 'cup' ? 'badge-cup' : 'badge-league'}`}>
+                          {match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'}
+                        </span>
+                        <span style={{fontSize:'0.62rem', color:'#334155'}}>Série {match.series?.id}</span>
+                        {match.match_number && (
+                          <span style={{fontSize:'0.62rem', color:'#334155'}}>{labelJornada(match)}</span>
+                        )}
+                      </div>
+                      <span style={{fontSize:'0.7rem', color:'#334155'}}>
+                        {new Date(match.date).toLocaleDateString('pt-PT', { day:'numeric', month:'short', year:'numeric' })}
+                      </span>
+                    </div>
+
+                    {/* Placar central */}
+                    <div style={{display:'flex', alignItems:'center'}}>
+                      <div style={{flex:1, textAlign:'center'}}>
+                        <div className="team-name-row" style={{justifyContent:'center'}}>
+                          ⚪ <span>Brancos</span>
+                        </div>
+                        <div className="match-score" style={{
+                          color: brancosGanham ? 'white' : '#334155'
+                        }}>{match.white_wins}</div>
+                      </div>
+                      <div className="match-score-sep">—</div>
+                      <div style={{flex:1, textAlign:'center'}}>
+                        <div className="team-name-row" style={{justifyContent:'center'}}>
+                          ⚫ <span>Pretos</span>
+                        </div>
+                        <div className="match-score" style={{
+                          color: pretosGanham ? 'white' : '#334155'
+                        }}>{match.black_wins}</div>
+                      </div>
+                    </div>
+
+                    {/* Jogadores */}
+                    {(brancos?.length > 0 || pretos?.length > 0) && (
+                      <div className="players-row">
+                        <div>
+                          <div className="players-label">⚪ Brancos</div>
+                          <div className="players-names">{brancos?.join(', ')}</div>
+                        </div>
+                        <div>
+                          <div className="players-label">⚫ Pretos</div>
+                          <div className="players-names">{pretos?.join(', ')}</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
       </div>
-
-      {(!matches || matches.length === 0) && (
-        <div className="text-center text-slate-400 py-12">
-          Ainda não há jogos registados.
-        </div>
-      )}
-
-      {/* Agendados */}
-      {agendados.length > 0 && (
-        <div>
-          <h2 className="text-sm font-bold text-yellow-400 mb-3">📆 Agendados ({agendados.length})</h2>
-          <div className="space-y-3">
-            {agendados.map(match => {
-              const brancos = match.match_players?.filter(mp => mp.played_for === 'white').map(mp => mp.players?.name).filter(Boolean)
-              const pretos = match.match_players?.filter(mp => mp.played_for === 'black').map(mp => mp.players?.name).filter(Boolean)
-              return (
-                <div key={match.id} className="bg-slate-800 rounded-xl p-3 border border-yellow-500/30">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-slate-300 text-xs font-medium">
-                        {new Date(match.date).toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' })}
-                      </p>
-                      <p className="text-slate-400 text-xs">
-                        Série {match.series?.id} · {match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'}
-                        {match.match_number ? ` · ${labelJornada(match)}` : ''}
-                      </p>
-                    </div>
-                    <span className="text-yellow-400 text-xs font-medium bg-yellow-500/10 px-2.5 py-1 rounded-lg">
-                      Por realizar
-                    </span>
-                  </div>
-                  {(brancos?.length > 0 || pretos?.length > 0) && (
-                    <div className="mt-2 pt-2 border-t border-slate-700 grid grid-cols-2 gap-2">
-                      <p className="text-slate-400 text-xs">⚪ {brancos?.join(', ')}</p>
-                      <p className="text-slate-400 text-xs">⚫ {pretos?.join(', ')}</p>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Realizados */}
-      {realizados.length > 0 && (
-        <div>
-          <h2 className="text-sm font-bold text-slate-300 mb-3">✅ Realizados ({realizados.length})</h2>
-          <div className="space-y-3">
-            {realizados.map(match => {
-              const brancos = match.match_players?.filter(mp => mp.played_for === 'white').map(mp => mp.players?.name).filter(Boolean)
-              const pretos = match.match_players?.filter(mp => mp.played_for === 'black').map(mp => mp.players?.name).filter(Boolean)
-              return (
-                <div key={match.id} className="bg-slate-800 rounded-xl p-3 border border-slate-700">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-slate-400 text-xs">
-                        {new Date(match.date).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </p>
-                      <p className="text-slate-300 text-xs">
-                        Série {match.series?.id} · {match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'}
-                        {match.match_number ? ` · ${labelJornada(match)}` : ''}
-                      </p>
-                    </div>
-                    <span className="text-white font-bold text-sm bg-slate-700 px-3 py-1 rounded-lg">
-                      {match.white_wins} — {match.black_wins}
-                    </span>
-                  </div>
-                  {(brancos?.length > 0 || pretos?.length > 0) && (
-                    <div className="mt-2 pt-2 border-t border-slate-700 grid grid-cols-2 gap-2">
-                      <div>
-                        <p className="text-slate-500 text-xs mb-0.5">⚪ Brancos</p>
-                        <p className="text-slate-300 text-xs">{brancos?.join(', ')}</p>
-                      </div>
-                      <div>
-                        <p className="text-slate-500 text-xs mb-0.5">⚫ Pretos</p>
-                        <p className="text-slate-300 text-xs">{pretos?.join(', ')}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   )
 }
