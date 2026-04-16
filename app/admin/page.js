@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
-const EMAIL = 'danielcostasilva.dcs@gmail.com'   // ← muda para o teu e-mail
-const PIN = '9663'               // ← muda para o teu PIN
+const EMAIL = 'danielcostasilva.dcs@gmail.com'
+const PIN = '9663'
 
 export default function Admin() {
   const [autenticado, setAutenticado] = useState(false)
@@ -15,6 +15,7 @@ export default function Admin() {
   const [players, setPlayers] = useState([])
   const [matches, setMatches] = useState([])
   const [mensagem, setMensagem] = useState({ tipo: '', texto: '' })
+  const [editarResultado, setEditarResultado] = useState(null)
 
   const [novoJogo, setNovoJogo] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -40,7 +41,6 @@ export default function Admin() {
       .from('matches')
       .select('*, series(id), match_players(played_for, players(name))')
       .order('date', { ascending: false })
-      .limit(20)
     setSeries(s || [])
     setPlayers(p || [])
     setMatches(m || [])
@@ -72,14 +72,12 @@ export default function Admin() {
   }
 
   const submeterJogo = async () => {
-    if (novoJogo.white_score === '' || novoJogo.black_score === '') {
-      mostrarMensagem('erro', 'Indica o resultado do jogo')
-      return
-    }
     if (!novoJogo.series_id) {
       mostrarMensagem('erro', 'Seleciona a série')
       return
     }
+
+    const temResultado = novoJogo.white_score !== '' && novoJogo.black_score !== ''
 
     const { data: match, error } = await supabase
       .from('matches')
@@ -87,8 +85,8 @@ export default function Admin() {
         date: novoJogo.date,
         series_id: novoJogo.series_id,
         phase: novoJogo.phase,
-        white_wins: parseInt(novoJogo.white_score),
-        black_wins: parseInt(novoJogo.black_score),
+        white_wins: temResultado ? parseInt(novoJogo.white_score) : null,
+        black_wins: temResultado ? parseInt(novoJogo.black_score) : null,
       })
       .select().single()
 
@@ -100,25 +98,11 @@ export default function Admin() {
     ]
     if (matchPlayers.length > 0) await supabase.from('match_players').insert(matchPlayers)
 
-    const serieAtual = series.find(s => s.id === parseInt(novoJogo.series_id))
-    if (serieAtual) {
-      const updates = {}
-      if (novoJogo.phase === 'cup') {
-        updates.cup_white_wins = (serieAtual.cup_white_wins || 0) + parseInt(novoJogo.white_score)
-        updates.cup_black_wins = (serieAtual.cup_black_wins || 0) + parseInt(novoJogo.black_score)
-        if (updates.cup_white_wins >= 2) updates.cup_winner = 'white'
-        if (updates.cup_black_wins >= 2) updates.cup_winner = 'black'
-      } else {
-        updates.league_white_wins = (serieAtual.league_white_wins || 0) + parseInt(novoJogo.white_score)
-        updates.league_black_wins = (serieAtual.league_black_wins || 0) + parseInt(novoJogo.black_score)
-        if (updates.league_white_wins >= 11) updates.league_winner = 'white'
-        if (updates.league_black_wins >= 11) updates.league_winner = 'black'
-      }
-      if (updates.cup_winner && updates.league_winner) updates.status = 'finished'
-      await supabase.from('series').update(updates).eq('id', novoJogo.series_id)
+    if (temResultado) {
+      await atualizarSerie(novoJogo.series_id, novoJogo.phase, parseInt(novoJogo.white_score), parseInt(novoJogo.black_score))
     }
 
-    mostrarMensagem('ok', '✅ Jogo guardado!')
+    mostrarMensagem('ok', temResultado ? '✅ Jogo guardado com resultado!' : '✅ Jogo agendado!')
     setNovoJogo(prev => ({
       ...prev,
       white_score: '',
@@ -126,6 +110,47 @@ export default function Admin() {
       white_players: [],
       black_players: [],
     }))
+    carregarDados()
+  }
+
+  const atualizarSerie = async (seriesId, phase, whiteScore, blackScore) => {
+    const serieAtual = series.find(s => s.id === parseInt(seriesId))
+    if (!serieAtual) return
+    const updates = {}
+    if (phase === 'cup') {
+      updates.cup_white_wins = (serieAtual.cup_white_wins || 0) + whiteScore
+      updates.cup_black_wins = (serieAtual.cup_black_wins || 0) + blackScore
+      if (updates.cup_white_wins >= 2) updates.cup_winner = 'white'
+      if (updates.cup_black_wins >= 2) updates.cup_winner = 'black'
+    } else {
+      updates.league_white_wins = (serieAtual.league_white_wins || 0) + whiteScore
+      updates.league_black_wins = (serieAtual.league_black_wins || 0) + blackScore
+      if (updates.league_white_wins >= 11) updates.league_winner = 'white'
+      if (updates.league_black_wins >= 11) updates.league_winner = 'black'
+    }
+    if (updates.cup_winner && updates.league_winner) updates.status = 'finished'
+    await supabase.from('series').update(updates).eq('id', seriesId)
+  }
+
+  const guardarResultado = async () => {
+    if (editarResultado.white_score === '' || editarResultado.black_score === '') {
+      mostrarMensagem('erro', 'Preenche os dois valores do resultado')
+      return
+    }
+    const { error } = await supabase
+      .from('matches')
+      .update({
+        white_wins: parseInt(editarResultado.white_score),
+        black_wins: parseInt(editarResultado.black_score),
+      })
+      .eq('id', editarResultado.id)
+
+    if (error) { mostrarMensagem('erro', 'Erro: ' + error.message); return }
+
+    await atualizarSerie(editarResultado.series_id, editarResultado.phase, parseInt(editarResultado.white_score), parseInt(editarResultado.black_score))
+
+    mostrarMensagem('ok', '✅ Resultado guardado!')
+    setEditarResultado(null)
     carregarDados()
   }
 
@@ -179,6 +204,12 @@ export default function Admin() {
     mostrarMensagem('ok', '✅ Nova série criada!')
     carregarDados()
   }
+
+  // Separar jogos agendados dos realizados
+  const jogosAgendados = matches.filter(m => m.white_wins === null && m.black_wins === null)
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+  const jogosRealizados = matches.filter(m => m.white_wins !== null && m.black_wins !== null)
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
 
   if (!autenticado) {
     return (
@@ -251,7 +282,6 @@ export default function Admin() {
         <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-5">
           <h2 className="text-lg font-bold text-white">Registar Jogo</h2>
 
-          {/* Data */}
           <div>
             <label className="text-slate-400 text-xs mb-1 block">Data</label>
             <input
@@ -262,7 +292,6 @@ export default function Admin() {
             />
           </div>
 
-          {/* Série + Competição */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-slate-400 text-xs mb-1 block">Série</label>
@@ -273,9 +302,7 @@ export default function Admin() {
               >
                 <option value="">Selecionar</option>
                 {series.map(s => (
-                  <option key={s.id} value={s.id}>
-                    Série {s.id} {s.status === 'active' ? '🟢' : ''}
-                  </option>
+                  <option key={s.id} value={s.id}>Série {s.id} {s.status === 'active' ? '🟢' : ''}</option>
                 ))}
               </select>
             </div>
@@ -292,16 +319,13 @@ export default function Admin() {
             </div>
           </div>
 
-          {/* Resultado */}
           <div>
-            <label className="text-slate-400 text-xs mb-2 block">Resultado</label>
+            <label className="text-slate-400 text-xs mb-2 block">Resultado <span className="text-slate-500">(opcional — pode ser preenchido depois)</span></label>
             <div className="flex items-center gap-3 bg-slate-700 rounded-xl p-3">
               <div className="flex-1 text-center">
                 <p className="text-slate-400 text-xs mb-1">⚪ Brancos</p>
                 <input
-                  type="number"
-                  min="0"
-                  placeholder="0"
+                  type="number" min="0" placeholder="—"
                   value={novoJogo.white_score}
                   onChange={e => setNovoJogo(p => ({ ...p, white_score: e.target.value }))}
                   className="w-full bg-slate-600 text-white rounded-lg px-2 py-2 border border-slate-500 text-2xl font-bold text-center"
@@ -311,9 +335,7 @@ export default function Admin() {
               <div className="flex-1 text-center">
                 <p className="text-slate-400 text-xs mb-1">⚫ Pretos</p>
                 <input
-                  type="number"
-                  min="0"
-                  placeholder="0"
+                  type="number" min="0" placeholder="—"
                   value={novoJogo.black_score}
                   onChange={e => setNovoJogo(p => ({ ...p, black_score: e.target.value }))}
                   className="w-full bg-slate-600 text-white rounded-lg px-2 py-2 border border-slate-500 text-2xl font-bold text-center"
@@ -322,21 +344,18 @@ export default function Admin() {
             </div>
           </div>
 
-          {/* Jogadores */}
           <div>
-            <label className="text-slate-400 text-xs mb-2 block">Jogadores</label>
+            <label className="text-slate-400 text-xs mb-2 block">Jogadores <span className="text-slate-500">(opcional)</span></label>
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-slate-700 rounded-xl p-3">
                 <p className="text-white text-xs font-semibold mb-2">⚪ Brancos</p>
                 <div className="space-y-2 max-h-52 overflow-y-auto">
                   {players.filter(p => p.active).map(p => (
                     <label key={p.id + '_w'} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
+                      <input type="checkbox"
                         checked={novoJogo.white_players.includes(p.id)}
                         onChange={() => togglePlayer(p.id, 'white')}
-                        className="rounded accent-green-500 w-4 h-4 shrink-0"
-                      />
+                        className="rounded accent-green-500 w-4 h-4 shrink-0" />
                       <span className="text-slate-300 text-xs leading-tight">
                         {p.name}
                         {p.team !== 'white' && <span className="text-yellow-500"> (conv.)</span>}
@@ -351,12 +370,10 @@ export default function Admin() {
                 <div className="space-y-2 max-h-52 overflow-y-auto">
                   {players.filter(p => p.active).map(p => (
                     <label key={p.id + '_b'} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
+                      <input type="checkbox"
                         checked={novoJogo.black_players.includes(p.id)}
                         onChange={() => togglePlayer(p.id, 'black')}
-                        className="rounded accent-green-500 w-4 h-4 shrink-0"
-                      />
+                        className="rounded accent-green-500 w-4 h-4 shrink-0" />
                       <span className="text-slate-300 text-xs leading-tight">
                         {p.name}
                         {p.team !== 'black' && <span className="text-yellow-500"> (conv.)</span>}
@@ -369,10 +386,8 @@ export default function Admin() {
             </div>
           </div>
 
-          <button
-            onClick={submeterJogo}
-            className="w-full bg-green-600 hover:bg-green-500 active:bg-green-700 text-white rounded-xl py-3 font-bold transition"
-          >
+          <button onClick={submeterJogo}
+            className="w-full bg-green-600 hover:bg-green-500 active:bg-green-700 text-white rounded-xl py-3 font-bold transition">
             Guardar Jogo
           </button>
         </div>
@@ -434,7 +449,6 @@ export default function Admin() {
             className="w-full bg-blue-600 hover:bg-blue-500 text-white rounded-xl py-2.5 font-bold text-sm transition">
             + Criar Nova Série
           </button>
-
           {series.map(s => (
             <div key={s.id} className="bg-slate-800 rounded-2xl p-4 border border-slate-700">
               <div className="flex items-center justify-between mb-3">
@@ -449,7 +463,6 @@ export default function Admin() {
                   </button>
                 </div>
               </div>
-
               {editSerie?.id === s.id ? (
                 <div className="space-y-3">
                   <p className="text-slate-400 text-xs font-semibold">👑 Campeonato</p>
@@ -477,7 +490,6 @@ export default function Admin() {
                       <option value="black">⚫ Pretos</option>
                     </select>
                   </div>
-
                   <p className="text-slate-400 text-xs font-semibold mt-2">🏆 Taça</p>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -530,35 +542,103 @@ export default function Admin() {
 
       {/* ── Tab: Histórico ── */}
       {tab === 'historico' && (
-        <div className="space-y-3">
-          <h2 className="text-base font-bold text-white">Últimos 20 Jogos</h2>
-          {matches.map(match => {
-            const brancos = match.match_players?.filter(mp => mp.played_for === 'white').map(mp => mp.players?.name).filter(Boolean)
-            const pretos = match.match_players?.filter(mp => mp.played_for === 'black').map(mp => mp.players?.name).filter(Boolean)
-            return (
-              <div key={match.id} className="bg-slate-800 rounded-xl p-3 border border-slate-700">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-slate-400 text-xs">{new Date(match.date).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                    <p className="text-slate-300 text-xs">Série {match.series?.id} · {match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'}</p>
+        <div className="space-y-5">
+
+          {/* Jogos agendados */}
+          {jogosAgendados.length > 0 && (
+            <div>
+              <h2 className="text-sm font-bold text-yellow-400 mb-3">📆 Agendados ({jogosAgendados.length})</h2>
+              <div className="space-y-3">
+                {jogosAgendados.map(match => (
+                  <div key={match.id} className="bg-slate-800 rounded-xl p-3 border border-yellow-500/30">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-slate-300 text-xs font-medium">{new Date(match.date).toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' })}</p>
+                        <p className="text-slate-400 text-xs">Série {match.series?.id} · {match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-yellow-400 text-xs font-medium bg-yellow-500/10 px-2.5 py-1 rounded-lg">Por realizar</span>
+                        <button
+                          onClick={() => setEditarResultado({ id: match.id, series_id: match.series_id, phase: match.phase, white_score: '', black_score: '' })}
+                          className="text-xs bg-green-500/20 text-green-400 hover:bg-green-500/30 px-2.5 py-1.5 rounded-lg transition">
+                          + Resultado
+                        </button>
+                        <button onClick={() => apagarJogo(match.id)}
+                          className="text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30 px-2.5 py-1.5 rounded-lg transition">
+                          🗑
+                        </button>
+                      </div>
+                    </div>
+                    {editarResultado?.id === match.id && (
+                      <div className="mt-3 pt-3 border-t border-slate-700 space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 text-center">
+                            <p className="text-slate-400 text-xs mb-1">⚪ Brancos</p>
+                            <input type="number" min="0" placeholder="0"
+                              value={editarResultado.white_score}
+                              onChange={e => setEditarResultado(p => ({ ...p, white_score: e.target.value }))}
+                              className="w-full bg-slate-600 text-white rounded-lg px-2 py-2 border border-slate-500 text-xl font-bold text-center" />
+                          </div>
+                          <p className="text-slate-400 text-lg">—</p>
+                          <div className="flex-1 text-center">
+                            <p className="text-slate-400 text-xs mb-1">⚫ Pretos</p>
+                            <input type="number" min="0" placeholder="0"
+                              value={editarResultado.black_score}
+                              onChange={e => setEditarResultado(p => ({ ...p, black_score: e.target.value }))}
+                              className="w-full bg-slate-600 text-white rounded-lg px-2 py-2 border border-slate-500 text-xl font-bold text-center" />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={guardarResultado}
+                            className="flex-1 bg-green-600 hover:bg-green-500 text-white rounded-xl py-2 font-bold text-sm transition">
+                            Guardar
+                          </button>
+                          <button onClick={() => setEditarResultado(null)}
+                            className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl py-2 font-bold text-sm transition">
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-white font-bold text-sm bg-slate-700 px-3 py-1 rounded-lg">{match.white_wins} — {match.black_wins}</span>
-                    <button onClick={() => apagarJogo(match.id)}
-                      className="text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30 px-2.5 py-1.5 rounded-lg transition">
-                      🗑
-                    </button>
-                  </div>
-                </div>
-                {(brancos?.length > 0 || pretos?.length > 0) && (
-                  <div className="mt-2 pt-2 border-t border-slate-700 grid grid-cols-2 gap-2">
-                    <p className="text-slate-400 text-xs">⚪ {brancos?.join(', ')}</p>
-                    <p className="text-slate-400 text-xs">⚫ {pretos?.join(', ')}</p>
-                  </div>
-                )}
+                ))}
               </div>
-            )
-          })}
+            </div>
+          )}
+
+          {/* Jogos realizados */}
+          <div>
+            <h2 className="text-sm font-bold text-slate-300 mb-3">✅ Realizados ({jogosRealizados.length})</h2>
+            <div className="space-y-3">
+              {jogosRealizados.map(match => {
+                const brancos = match.match_players?.filter(mp => mp.played_for === 'white').map(mp => mp.players?.name).filter(Boolean)
+                const pretos = match.match_players?.filter(mp => mp.played_for === 'black').map(mp => mp.players?.name).filter(Boolean)
+                return (
+                  <div key={match.id} className="bg-slate-800 rounded-xl p-3 border border-slate-700">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-slate-400 text-xs">{new Date(match.date).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                        <p className="text-slate-300 text-xs">Série {match.series?.id} · {match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-white font-bold text-sm bg-slate-700 px-3 py-1 rounded-lg">{match.white_wins} — {match.black_wins}</span>
+                        <button onClick={() => apagarJogo(match.id)}
+                          className="text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30 px-2.5 py-1.5 rounded-lg transition">
+                          🗑
+                        </button>
+                      </div>
+                    </div>
+                    {(brancos?.length > 0 || pretos?.length > 0) && (
+                      <div className="mt-2 pt-2 border-t border-slate-700 grid grid-cols-2 gap-2">
+                        <p className="text-slate-400 text-xs">⚪ {brancos?.join(', ')}</p>
+                        <p className="text-slate-400 text-xs">⚫ {pretos?.join(', ')}</p>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         </div>
       )}
     </div>
