@@ -327,6 +327,7 @@ export default function Admin() {
       league_black_wins: parseInt(editSerie.league_black_wins) || 0,
       league_winner: editSerie.league_winner || null,
       status: editSerie.status,
+      active_competition: editSerie.active_competition || 'league',
     }).eq('id', editSerie.id)
     if (error) { mostrarMensagem('erro', 'Erro: ' + error.message); return }
     mostrarMensagem('ok', '✅ Série atualizada!')
@@ -790,6 +791,16 @@ export default function Admin() {
                       <option value="">Em curso / Não disputada</option>
                       <option value="white">⚪ Brancos</option>
                       <option value="black">⚫ Pretos</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-slate-500 text-xs">Competição Ativa</label>
+                    <select value={editSerie.active_competition || 'league'}
+                      onChange={e => setEditSerie(p => ({ ...p, active_competition: e.target.value }))}
+                      className="w-full bg-slate-700 text-white rounded-lg px-3 py-1.5 border border-slate-600 text-sm mt-0.5">
+                      <option value="league">👑 Campeonato</option>
+                      <option value="cup">🏆 Taça</option>
+                      <option value="both">👑 Campeonato + 🏆 Taça</option>
                     </select>
                   </div>
                   <div>
