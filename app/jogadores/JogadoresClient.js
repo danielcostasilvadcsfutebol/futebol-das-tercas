@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 
-export default function JogadoresClient({ todosAtivos, inativos, topMvp }) {
+export default function JogadoresClient({ todosAtivos, inativos, ultimoMvp }) {
   const [filtro, setFiltro] = useState('all')
 
   const jogadoresFiltrados = filtro === 'all'
@@ -110,25 +110,26 @@ export default function JogadoresClient({ todosAtivos, inativos, topMvp }) {
           </button>
         </div>
 
-        {/* MVP destaque — só mostra no filtro "Todos" */}
-        {filtro === 'all' && topMvp && topMvp.stats.mvp > 0 && (
+        {/* MVP do último jogo — só quando não há votação aberta */}
+        {filtro === 'all' && ultimoMvp && (
           <div className="mvp-card">
-            <div style={{fontSize:'0.65rem', color:'#f59e0b', letterSpacing:'0.12em', textTransform:'uppercase', fontWeight:700, marginBottom:8}}>⭐ Melhor em Campo</div>
+            <div style={{fontSize:'0.65rem', color:'#f59e0b', letterSpacing:'0.12em', textTransform:'uppercase', fontWeight:700, marginBottom:8}}>⭐ Melhor em Campo — Último Jogo</div>
             <div style={{display:'flex', alignItems:'center', gap:12}}>
-              {topMvp.photo_url
-                ? <img src={topMvp.photo_url} alt={topMvp.name} className="avatar" style={{border:'2px solid rgba(251,191,36,0.4)'}} />
+              {ultimoMvp.player.photo_url
+                ? <img src={ultimoMvp.player.photo_url} alt={ultimoMvp.player.name} className="avatar" style={{border:'2px solid rgba(251,191,36,0.4)'}} />
                 : <div className="avatar-placeholder" style={{background:'rgba(251,191,36,0.1)', border:'2px solid rgba(251,191,36,0.3)', color:'#f59e0b', fontSize:'1.3rem'}}>
-                    {topMvp.name.charAt(0).toUpperCase()}
+                    {ultimoMvp.player.name.charAt(0).toUpperCase()}
                   </div>
               }
               <div style={{flex:1}}>
-                <div style={{fontSize:'1.2rem', fontWeight:700, color:'white', lineHeight:1}}>{topMvp.name}</div>
+                <div style={{fontSize:'1.2rem', fontWeight:700, color:'white', lineHeight:1}}>{ultimoMvp.player.name}</div>
                 <div style={{fontSize:'0.7rem', color:'#78716c', marginTop:3}}>
-                  {topMvp.stats.mvp} {topMvp.stats.mvp === 1 ? 'voto' : 'votos'} · {topMvp.stats.jogos} jogos · {topMvp.stats.pct}% vitórias
+                  {ultimoMvp.votos} {ultimoMvp.votos === 1 ? 'voto' : 'votos'}
+                  {ultimoMvp.match && ` · ${ultimoMvp.match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'} · Série ${ultimoMvp.match.series_id}`}
                 </div>
               </div>
               <div style={{fontFamily:"'Bebas Neue', sans-serif", fontSize:'2.8rem', color:'#f59e0b', lineHeight:1, textShadow:'0 0 30px rgba(251,191,36,0.3)'}}>
-                {topMvp.stats.mvp}
+                {ultimoMvp.votos}
               </div>
             </div>
           </div>
