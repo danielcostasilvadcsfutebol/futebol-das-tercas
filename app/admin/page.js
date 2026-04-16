@@ -21,6 +21,7 @@ export default function Admin() {
     date: new Date().toISOString().split('T')[0],
     series_id: '',
     phase: 'league',
+    match_number: '',
     white_score: '',
     black_score: '',
     white_players: [],
@@ -71,6 +72,26 @@ export default function Admin() {
     }))
   }
 
+  // Gera as opções de jornada/ronda conforme a competição selecionada
+  const gerarOpcoesJornada = (phase) => {
+    if (phase === 'cup') {
+      // Taça: fases eliminatórias
+      return [
+        { value: '1', label: 'Jogo 1' },
+        { value: '2', label: 'Jogo 2' },
+        { value: '3', label: 'Jogo 3' },
+        { value: '4', label: 'Jogo 4' },
+        { value: '5', label: 'Jogo 5' },
+      ]
+    } else {
+      // Campeonato: jornadas 1–21
+      return Array.from({ length: 21 }, (_, i) => ({
+        value: String(i + 1),
+        label: `Jornada ${i + 1}`,
+      }))
+    }
+  }
+
   const submeterJogo = async () => {
     if (!novoJogo.series_id) {
       mostrarMensagem('erro', 'Seleciona a série')
@@ -85,6 +106,7 @@ export default function Admin() {
         date: novoJogo.date,
         series_id: novoJogo.series_id,
         phase: novoJogo.phase,
+        match_number: novoJogo.match_number ? parseInt(novoJogo.match_number) : null,
         white_wins: temResultado ? parseInt(novoJogo.white_score) : null,
         black_wins: temResultado ? parseInt(novoJogo.black_score) : null,
       })
@@ -105,6 +127,7 @@ export default function Admin() {
     mostrarMensagem('ok', temResultado ? '✅ Jogo guardado com resultado!' : '✅ Jogo agendado!')
     setNovoJogo(prev => ({
       ...prev,
+      match_number: '',
       white_score: '',
       black_score: '',
       white_players: [],
@@ -205,7 +228,12 @@ export default function Admin() {
     carregarDados()
   }
 
-  // Separar jogos agendados dos realizados
+  // Label de jornada/ronda para apresentar
+  const labelJornada = (match) => {
+    if (!match.match_number) return null
+    return match.phase === 'cup' ? `Jogo ${match.match_number}` : `Jornada ${match.match_number}`
+  }
+
   const jogosAgendados = matches.filter(m => m.white_wins === null && m.black_wins === null)
     .sort((a, b) => new Date(a.date) - new Date(b.date))
   const jogosRealizados = matches.filter(m => m.white_wins !== null && m.black_wins !== null)
@@ -292,7 +320,8 @@ export default function Admin() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {/* Série + Competição + Jornada numa grelha de 3 */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
               <label className="text-slate-400 text-xs mb-1 block">Série</label>
               <select
@@ -310,11 +339,26 @@ export default function Admin() {
               <label className="text-slate-400 text-xs mb-1 block">Competição</label>
               <select
                 value={novoJogo.phase}
-                onChange={e => setNovoJogo(p => ({ ...p, phase: e.target.value }))}
+                onChange={e => setNovoJogo(p => ({ ...p, phase: e.target.value, match_number: '' }))}
                 className="w-full bg-slate-700 text-white rounded-xl px-3 py-2.5 border border-slate-600 text-sm"
               >
                 <option value="league">👑 Campeonato</option>
                 <option value="cup">🏆 Taça</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-slate-400 text-xs mb-1 block">
+                {novoJogo.phase === 'cup' ? 'Jogo da Taça' : 'Jornada'}
+              </label>
+              <select
+                value={novoJogo.match_number}
+                onChange={e => setNovoJogo(p => ({ ...p, match_number: e.target.value }))}
+                className="w-full bg-slate-700 text-white rounded-xl px-3 py-2.5 border border-slate-600 text-sm"
+              >
+                <option value="">— Selecionar —</option>
+                {gerarOpcoesJornada(novoJogo.phase).map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -553,8 +597,13 @@ export default function Admin() {
                   <div key={match.id} className="bg-slate-800 rounded-xl p-3 border border-yellow-500/30">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-slate-300 text-xs font-medium">{new Date(match.date).toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' })}</p>
-                        <p className="text-slate-400 text-xs">Série {match.series?.id} · {match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'}</p>
+                        <p className="text-slate-300 text-xs font-medium">
+                          {new Date(match.date).toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' })}
+                        </p>
+                        <p className="text-slate-400 text-xs">
+                          Série {match.series?.id} · {match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'}
+                          {match.match_number ? ` · ${labelJornada(match)}` : ''}
+                        </p>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-yellow-400 text-xs font-medium bg-yellow-500/10 px-2.5 py-1 rounded-lg">Por realizar</span>
@@ -569,6 +618,19 @@ export default function Admin() {
                         </button>
                       </div>
                     </div>
+
+                    {/* Jogadores agendados */}
+                    {(() => {
+                      const brancos = match.match_players?.filter(mp => mp.played_for === 'white').map(mp => mp.players?.name).filter(Boolean)
+                      const pretos = match.match_players?.filter(mp => mp.played_for === 'black').map(mp => mp.players?.name).filter(Boolean)
+                      return (brancos?.length > 0 || pretos?.length > 0) ? (
+                        <div className="mt-2 pt-2 border-t border-slate-700 grid grid-cols-2 gap-2">
+                          <p className="text-slate-400 text-xs">⚪ {brancos?.join(', ')}</p>
+                          <p className="text-slate-400 text-xs">⚫ {pretos?.join(', ')}</p>
+                        </div>
+                      ) : null
+                    })()}
+
                     {editarResultado?.id === match.id && (
                       <div className="mt-3 pt-3 border-t border-slate-700 space-y-3">
                         <div className="flex items-center gap-3">
@@ -617,8 +679,13 @@ export default function Admin() {
                   <div key={match.id} className="bg-slate-800 rounded-xl p-3 border border-slate-700">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-slate-400 text-xs">{new Date(match.date).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                        <p className="text-slate-300 text-xs">Série {match.series?.id} · {match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'}</p>
+                        <p className="text-slate-400 text-xs">
+                          {new Date(match.date).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </p>
+                        <p className="text-slate-300 text-xs">
+                          Série {match.series?.id} · {match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'}
+                          {match.match_number ? ` · ${labelJornada(match)}` : ''}
+                        </p>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-white font-bold text-sm bg-slate-700 px-3 py-1 rounded-lg">{match.white_wins} — {match.black_wins}</span>
@@ -630,8 +697,14 @@ export default function Admin() {
                     </div>
                     {(brancos?.length > 0 || pretos?.length > 0) && (
                       <div className="mt-2 pt-2 border-t border-slate-700 grid grid-cols-2 gap-2">
-                        <p className="text-slate-400 text-xs">⚪ {brancos?.join(', ')}</p>
-                        <p className="text-slate-400 text-xs">⚫ {pretos?.join(', ')}</p>
+                        <div>
+                          <p className="text-slate-500 text-xs mb-0.5">⚪ Brancos</p>
+                          <p className="text-slate-300 text-xs">{brancos?.join(', ')}</p>
+                        </div>
+                        <div>
+                          <p className="text-slate-500 text-xs mb-0.5">⚫ Pretos</p>
+                          <p className="text-slate-300 text-xs">{pretos?.join(', ')}</p>
+                        </div>
                       </div>
                     )}
                   </div>
