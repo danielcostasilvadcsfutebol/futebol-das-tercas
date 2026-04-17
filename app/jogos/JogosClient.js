@@ -57,10 +57,10 @@ export default function JogosClient({ agendados, realizados, matchVotacao, horas
         .pending-pill { font-size: 0.62rem; font-weight: 700; color: #f59e0b; background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.15); border-radius: 8px; padding: 4px 10px; }
 
         .players-row { border-top: 1px solid rgba(255,255,255,0.05); margin-top: 10px; padding-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .players-label { font-size: 0.58rem; color: #334155; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px; font-weight: 600; }
-        .players-names { font-size: 0.72rem; color: #64748b; line-height: 1.5; }
+        .players-label { font-size: 0.58rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px; font-weight: 600; }
+        .players-names { font-size: 0.72rem; color: #cbd5e1; line-height: 1.5; }
 
-        .chevron { font-size: 0.65rem; color: #334155; transition: transform 0.2s; display: inline-block; }
+        .chevron { font-size: 0.65rem; color: #64748b; transition: transform 0.2s; display: inline-block; }
         .chevron.open { transform: rotate(180deg); }
 
         .realizado-header {
@@ -83,7 +83,7 @@ export default function JogosClient({ agendados, realizados, matchVotacao, horas
         <div style={{paddingTop:10, paddingBottom:2}}>
           <h1 className="display-font" style={{fontSize:'2.2rem', color:'white', lineHeight:1, marginBottom:2}}>Jogos</h1>
           <p style={{fontSize:'0.68rem', color:'#334155', letterSpacing:'0.08em', textTransform:'uppercase', fontWeight:600}}>
-            Resultados · Agendamentos
+            Histórico de jogos
           </p>
         </div>
 
@@ -134,8 +134,8 @@ export default function JogosClient({ agendados, realizados, matchVotacao, horas
                           <span className={`badge-comp ${match.phase === 'cup' ? 'badge-cup' : 'badge-league'}`}>
                             {match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'}
                           </span>
-                          <span style={{fontSize:'0.62rem', color:'#334155'}}>Série {match.series?.id}</span>
-                          {match.match_number && <span style={{fontSize:'0.62rem', color:'#334155'}}>{labelJornada(match)}</span>}
+                          <span style={{fontSize:'0.62rem', color:'#64748b'}}>Série {match.series?.id}</span>
+                          {match.match_number && <span style={{fontSize:'0.62rem', color:'#64748b'}}>{labelJornada(match)}</span>}
                         </div>
                       </div>
                       <div className="pending-pill">Por realizar</div>
@@ -156,9 +156,9 @@ export default function JogosClient({ agendados, realizados, matchVotacao, horas
         {/* Realizados — com accordion */}
         {realizados.length > 0 && (
           <div>
-            <div className="section-title" style={{color:'#64748b'}}>
+            <div className="section-title" style={{color:'#f59e0b'}}>
               <span>Realizados</span>
-              <span style={{fontSize:'0.7rem', color:'#1e293b', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:99, padding:'1px 7px', fontFamily:'DM Sans'}}>
+              <span style={{fontSize:'0.7rem', color:'#78350f', background:'rgba(251,191,36,0.08)', border:'1px solid rgba(251,191,36,0.12)', borderRadius:99, padding:'1px 7px', fontFamily:'DM Sans'}}>
                 {realizados.length}
               </span>
             </div>
@@ -187,10 +187,10 @@ export default function JogosClient({ agendados, realizados, matchVotacao, horas
                             <span className={`badge-comp ${match.phase === 'cup' ? 'badge-cup' : 'badge-league'}`}>
                               {match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'}
                             </span>
-                            <span style={{fontSize:'0.6rem', color:'#334155'}}>Série {match.series?.id}</span>
-                            {match.match_number && <span style={{fontSize:'0.6rem', color:'#334155'}}>{labelJornada(match)}</span>}
+                            <span style={{fontSize:'0.6rem', color:'#64748b'}}>Série {match.series?.id}</span>
+                            {match.match_number && <span style={{fontSize:'0.6rem', color:'#64748b'}}>{labelJornada(match)}</span>}
                           </div>
-                          <div style={{fontSize:'0.68rem', color:'#334155', marginTop:2}}>
+                          <div style={{fontSize:'0.68rem', color:'#64748b', marginTop:2}}>
                             {new Date(match.date).toLocaleDateString('pt-PT', { day:'numeric', month:'short', year:'numeric' })}
                           </div>
                         </div>
