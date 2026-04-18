@@ -1,27 +1,30 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(request) {
-  // ← createClient AQUI DENTRO, não lá fora
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_KEY
   )
-
   try {
-    const subscription = await request.json()
+    const body = await request.json()
+    const { player_id, ...subscription } = body
 
-    const { error } = await supabase
+    await supabase
       .from('push_subscriptions')
       .upsert(
-        { endpoint: subscription.endpoint, subscription: subscription },
+        {
+          endpoint: subscription.endpoint,
+          subscription,
+          player_id: player_id || null,
+        },
         { onConflict: 'endpoint' }
       )
 
-    if (error) throw error
     return NextResponse.json({ ok: true })
   } catch (err) {
-    console.error('Erro ao guardar subscrição:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
