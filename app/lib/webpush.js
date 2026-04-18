@@ -53,7 +53,6 @@ function encryptPayload(subscription, plaintext) {
   const sharedSecret = ecdh.computeSecret(receiverPub)
   const salt = crypto.randomBytes(16)
 
-  // PRK usando auth secret
   const prk = hkdf(
     auth,
     sharedSecret,
@@ -61,7 +60,6 @@ function encryptPayload(subscription, plaintext) {
     32
   )
 
-  // Contexto para derivar CEK e nonce
   const context = Buffer.concat([
     Buffer.from('P-256\x00'),
     Buffer.from([0x00, 0x41]), receiverPub,
