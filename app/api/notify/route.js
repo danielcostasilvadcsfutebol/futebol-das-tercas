@@ -1,13 +1,16 @@
 import { createClient } from '@supabase/supabase-js'
-import webpush from 'web-push'
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(request) {
-  // ← tudo inicializado AQUI DENTRO
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_KEY
   )
+
+  // ← import dinâmico: só carrega quando a função é chamada, não no build
+  const webpush = (await import('web-push')).default
 
   webpush.setVapidDetails(
     'mailto:' + process.env.VAPID_EMAIL,
