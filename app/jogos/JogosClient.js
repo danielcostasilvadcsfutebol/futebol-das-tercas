@@ -94,7 +94,9 @@ export default function JogosClient({ agendados, realizados, matchVotacao, horas
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
               <div>
                 <div style={{fontSize:'0.6rem', color:'#f59e0b', letterSpacing:'0.12em', textTransform:'uppercase', fontWeight:700, marginBottom:2}}>⭐ MVP aberta</div>
-                <div style={{fontSize:'0.85rem', fontWeight:700, color:'white'}}>Votar no melhor em campo</div>
+                <div style={{fontSize:'0.85rem', fontWeight:700, color:'white'}}>
+                  Votar no melhor em campo{matchVotacao.match_number ? ` · ${matchVotacao.phase === 'cup' ? `Jogo ${matchVotacao.match_number}` : `Jornada ${matchVotacao.match_number}`}` : ''}
+                </div>
                 {horasVotacao !== null && <div style={{fontSize:'0.68rem', color:'#78716c', marginTop:1}}>Fecha em {horasVotacao}h</div>}
               </div>
               <div style={{background:'rgba(251,191,36,0.15)', border:'1px solid rgba(251,191,36,0.25)', borderRadius:10, padding:'7px 12px', fontSize:'0.72rem', fontWeight:700, color:'#f59e0b', flexShrink:0}}>
