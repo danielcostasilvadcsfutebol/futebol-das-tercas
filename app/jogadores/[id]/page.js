@@ -21,13 +21,7 @@ export default async function PerfilJogador({ params }) {
       match_players (
         played_for,
         matches (
-          id,
-          date,
-          white_wins,
-          black_wins,
-          phase,
-          match_number,
-          series (id)
+          id, date, white_wins, black_wins, phase, match_number, series (id)
         )
       )
     `)
@@ -36,56 +30,75 @@ export default async function PerfilJogador({ params }) {
 
   if (!player) notFound()
 
-  // Votos recebidos por este jogador
+  // Total de jogos realizados (para assiduidade)
+  const { count: totalJogos } = await supabase
+    .from('matches')
+    .select('*', { count: 'exact', head: true })
+    .not('white_wins', 'is', null)
+
+  // Votos recebidos
   const { data: votesReceived } = await supabase
     .from('mvp_votes')
     .select('match_id, voted_at, matches(date, phase, match_number, series_id)')
     .eq('voted_for_player_id', params.id)
     .order('voted_at', { ascending: false })
 
-  // Votos dados por este jogador (em quem votou)
+  // Votos dados
   const { data: votesGiven } = await supabase
     .from('mvp_votes')
-    .select(`
-      voted_for_player_id,
-      match_id,
-      voted_at,
-      candidate:players!mvp_votes_voted_for_player_id_fkey(id, name, photo_url, team)
-    `)
+    .select(`voted_for_player_id, match_id, voted_at, candidate:players!mvp_votes_voted_for_player_id_fkey(id, name, photo_url, team)`)
     .eq('voter_player_id', params.id)
     .order('voted_at', { ascending: false })
 
-  // IDs dos jogos onde este jogador recebeu votos
+  // MVP wins
   const matchIdsWithVotes = [...new Set(votesReceived?.map(v => v.match_id) || [])]
-
-  // Para cada jogo, verificar se foi o vencedor MVP
   let mvpWins = []
   if (matchIdsWithVotes.length > 0) {
     const { data: allVotesInMatches } = await supabase
       .from('mvp_votes')
       .select('match_id, voted_for_player_id')
       .in('match_id', matchIdsWithVotes)
-
     const votesByMatch = {}
     allVotesInMatches?.forEach(v => {
       if (!votesByMatch[v.match_id]) votesByMatch[v.match_id] = {}
       votesByMatch[v.match_id][v.voted_for_player_id] = (votesByMatch[v.match_id][v.voted_for_player_id] || 0) + 1
     })
-
     mvpWins = Object.entries(votesByMatch)
-      .filter(([, matchVotes]) => {
-        const sorted = Object.entries(matchVotes).sort((a, b) => b[1] - a[1])
-        return sorted[0]?.[0] === params.id
-      })
+      .filter(([, matchVotes]) => Object.entries(matchVotes).sort((a, b) => b[1] - a[1])[0]?.[0] === params.id)
       .map(([matchId, matchVotes]) => {
         const matchInfo = votesReceived?.find(v => String(v.match_id) === matchId)
-        return {
-          matchId,
-          match: matchInfo?.matches,
-          votos: matchVotes[params.id] || 0,
-        }
+        return { matchId, match: matchInfo?.matches, votos: matchVotes[params.id] || 0 }
       })
       .sort((a, b) => new Date(b.match?.date || 0) - new Date(a.match?.date || 0))
+  }
+
+  // Colegas de equipa mais frequentes
+  const matchIdsDoJogador = player.match_players
+    ?.filter(mp => mp.matches?.white_wins !== null)
+    .map(mp => ({ matchId: mp.matches?.id, team: mp.played_for })) || []
+
+  let colegasMaisFrequentes = []
+  if (matchIdsDoJogador.length > 0) {
+    const matchIds = matchIdsDoJogador.map(m => m.matchId)
+    const { data: allMatchPlayers } = await supabase
+      .from('match_players')
+      .select('match_id, played_for, players(id, name, photo_url, team)')
+      .in('match_id', matchIds)
+      .neq('player_id', params.id)
+
+    const contagemColegas = {}
+    allMatchPlayers?.forEach(mp => {
+      const meuTime = matchIdsDoJogador.find(m => m.matchId === mp.match_id)?.team
+      if (mp.played_for === meuTime) {
+        const pid = mp.players?.id
+        if (!pid) return
+        if (!contagemColegas[pid]) contagemColegas[pid] = { player: mp.players, count: 0 }
+        contagemColegas[pid].count++
+      }
+    })
+    colegasMaisFrequentes = Object.values(contagemColegas)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
   }
 
   // Estatísticas gerais
@@ -94,16 +107,14 @@ export default async function PerfilJogador({ params }) {
   ) || []
 
   const jogos = comResultado.length
-  const vitorias = comResultado.filter(mp => {
-    if (mp.played_for === 'white') return mp.matches.white_wins > mp.matches.black_wins
-    if (mp.played_for === 'black') return mp.matches.black_wins > mp.matches.white_wins
-    return false
-  }).length
-  const derrotas = comResultado.filter(mp => {
-    if (mp.played_for === 'white') return mp.matches.white_wins < mp.matches.black_wins
-    if (mp.played_for === 'black') return mp.matches.black_wins < mp.matches.white_wins
-    return false
-  }).length
+  const assiduidade = totalJogos > 0 ? Math.round((jogos / totalJogos) * 100) : 0
+
+  const vitorias = comResultado.filter(mp =>
+    mp.played_for === 'white' ? mp.matches.white_wins > mp.matches.black_wins : mp.matches.black_wins > mp.matches.white_wins
+  ).length
+  const derrotas = comResultado.filter(mp =>
+    mp.played_for === 'white' ? mp.matches.white_wins < mp.matches.black_wins : mp.matches.black_wins < mp.matches.white_wins
+  ).length
   const empates = jogos - vitorias - derrotas
   const pct = jogos > 0 ? Math.round((vitorias / jogos) * 100) : 0
   const mvpTotal = mvpWins.length
@@ -117,32 +128,36 @@ export default async function PerfilJogador({ params }) {
     mp.played_for === 'white' ? mp.matches.white_wins > mp.matches.black_wins : mp.matches.black_wins > mp.matches.white_wins
   ).length
 
-  // Jogos ordenados por data (mais recente primeiro)
   const jogosOrdenados = [...comResultado].sort((a, b) => new Date(b.matches.date) - new Date(a.matches.date))
+  const ultimos10 = jogosOrdenados.slice(0, 10)
 
-  // Últimos 5 jogos
-  const ultimos5 = jogosOrdenados.slice(0, 5)
-
-  // Sequência actual
+  // Sequência atual
   let streakCount = 0
   let streakType = null
   for (const mp of jogosOrdenados) {
     const ganhou = mp.played_for === 'white' ? mp.matches.white_wins > mp.matches.black_wins : mp.matches.black_wins > mp.matches.white_wins
-    const perdeu  = mp.played_for === 'white' ? mp.matches.white_wins < mp.matches.black_wins : mp.matches.black_wins < mp.matches.white_wins
+    const perdeu = mp.played_for === 'white' ? mp.matches.white_wins < mp.matches.black_wins : mp.matches.black_wins < mp.matches.white_wins
     const res = ganhou ? 'V' : perdeu ? 'D' : 'E'
     if (streakType === null) { streakType = res; streakCount = 1 }
-    else if (res === streakType) { streakCount++ }
+    else if (res === streakType) streakCount++
     else break
   }
 
-  // Forma recente (últimos 5)
-  const forma = ultimos5.map(mp => {
+  // Melhor sequência de vitórias de sempre
+  let melhorSequencia = 0
+  let sequenciaAtual = 0
+  for (const mp of jogosOrdenados) {
     const ganhou = mp.played_for === 'white' ? mp.matches.white_wins > mp.matches.black_wins : mp.matches.black_wins > mp.matches.white_wins
-    const perdeu  = mp.played_for === 'white' ? mp.matches.white_wins < mp.matches.black_wins : mp.matches.black_wins < mp.matches.white_wins
+    if (ganhou) { sequenciaAtual++; if (sequenciaAtual > melhorSequencia) melhorSequencia = sequenciaAtual }
+    else sequenciaAtual = 0
+  }
+
+  const forma = ultimos10.map(mp => {
+    const ganhou = mp.played_for === 'white' ? mp.matches.white_wins > mp.matches.black_wins : mp.matches.black_wins > mp.matches.white_wins
+    const perdeu = mp.played_for === 'white' ? mp.matches.white_wins < mp.matches.black_wins : mp.matches.black_wins < mp.matches.white_wins
     return ganhou ? 'V' : perdeu ? 'D' : 'E'
   })
 
-  // Votos dados — agrupar por candidato
   const votosDadosPorJogador = {}
   votesGiven?.forEach(v => {
     const cid = v.voted_for_player_id
@@ -174,6 +189,7 @@ export default async function PerfilJogador({ params }) {
 
         .stat-block {
           background: linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.98));
+          border: 1px solid rgba(255,255,255,0.06);
           border-radius: 14px;
           padding: 14px;
           text-align: center;
@@ -220,11 +236,10 @@ export default async function PerfilJogador({ params }) {
         .resultado-e { background: rgba(100,116,139,0.2); color: #94a3b8; }
 
         .forma-dot {
-          width: 32px; height: 32px;
+          width: 30px; height: 30px;
           border-radius: 50%;
           display: flex; align-items: center; justify-content: center;
-          font-size: 0.65rem; font-weight: 800;
-          letter-spacing: 0;
+          font-size: 0.62rem; font-weight: 800;
           flex-shrink: 0;
         }
         .forma-V { background: rgba(34,197,94,0.15); color: #22c55e; border: 1.5px solid rgba(34,197,94,0.3); }
@@ -232,96 +247,73 @@ export default async function PerfilJogador({ params }) {
         .forma-E { background: rgba(100,116,139,0.12); color: #64748b; border: 1.5px solid rgba(100,116,139,0.2); }
 
         .back-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 0.8rem;
-          color: #475569;
-          text-decoration: none;
-          margin-bottom: 16px;
-          transition: color 0.15s;
+          display: inline-flex; align-items: center; gap: 6px;
+          font-size: 0.8rem; color: #475569; text-decoration: none;
+          margin-bottom: 16px; transition: color 0.15s;
         }
         .back-btn:hover { color: #94a3b8; }
 
         .mvp-win-row {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 8px 0;
-          border-bottom: 1px solid rgba(255,255,255,0.04);
-          text-decoration: none;
-          transition: opacity 0.15s;
+          display: flex; align-items: center; gap: 10px;
+          padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+          text-decoration: none; transition: opacity 0.15s;
         }
         .mvp-win-row:last-child { border-bottom: none; }
         .mvp-win-row:hover { opacity: 0.8; }
 
         .voto-row {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 8px 0;
-          border-bottom: 1px solid rgba(255,255,255,0.04);
+          display: flex; align-items: center; gap: 10px;
+          padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
         }
         .voto-row:last-child { border-bottom: none; }
+
+        .colega-row {
+          display: flex; align-items: center; gap: 10px;
+          padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .colega-row:last-child { border-bottom: none; }
 
         .mini-avatar {
           width: 34px; height: 34px;
           border-radius: 50%; object-fit: cover; flex-shrink: 0;
         }
         .mini-placeholder {
-          width: 34px; height: 34px;
-          border-radius: 50%; display: flex; align-items: center; justify-content: center;
+          width: 34px; height: 34px; border-radius: 50%;
+          display: flex; align-items: center; justify-content: center;
           font-family: 'Bebas Neue', sans-serif; font-size: 0.9rem; flex-shrink: 0;
         }
         .mini-w { background: rgba(226,232,240,0.08); border: 1px solid rgba(226,232,240,0.15); color: #94a3b8; }
         .mini-b { background: rgba(15,15,15,0.5); border: 1px solid rgba(60,60,60,0.6); color: #64748b; }
+
+        .record-badge {
+          display: inline-flex; align-items: center; gap: 5px;
+          background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.15);
+          border-radius: 10px; padding: 5px 10px;
+        }
       `}</style>
 
       <div className="perfil-page pb-12">
         <a href="/jogadores" className="back-btn">← Jogadores</a>
 
-        {/* Hero — foto + nome + info */}
+        {/* Hero */}
         <div style={{
           background: isWhite
             ? 'linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.98))'
             : 'linear-gradient(135deg, rgba(15,15,20,0.98), rgba(10,10,15,0.99))',
           border: isWhite ? '1.5px solid rgba(226,232,240,0.3)' : '1.5px solid rgba(20,20,20,0.95)',
-          borderRadius: 20,
-          padding: '20px 16px',
-          marginBottom: 16,
-          position: 'relative',
-          overflow: 'hidden',
+          borderRadius: 20, padding: '20px 16px', marginBottom: 16,
+          position: 'relative', overflow: 'hidden',
         }}>
-          <div style={{
-            position: 'absolute', top: -30, right: -30,
-            width: 140, height: 140, borderRadius: '50%',
-            background: isWhite ? 'rgba(226,232,240,0.04)' : 'rgba(0,0,0,0.3)',
-            pointerEvents: 'none',
-          }} />
+          <div style={{ position:'absolute', top:-30, right:-30, width:140, height:140, borderRadius:'50%', background: isWhite ? 'rgba(226,232,240,0.04)' : 'rgba(0,0,0,0.3)', pointerEvents:'none' }} />
           <div style={{display:'flex', alignItems:'center', gap:16}}>
             {player.photo_url
-              ? <img src={player.photo_url} alt={player.name} style={{
-                  width: 80, height: 80, borderRadius: '50%', objectFit: 'cover', flexShrink: 0,
-                  border: isWhite ? '2.5px solid rgba(226,232,240,0.35)' : '2.5px solid rgba(20,20,20,0.9)',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-                }} />
-              : <div style={{
-                  width: 80, height: 80, borderRadius: '50%', flexShrink: 0,
-                  background: isWhite ? 'rgba(226,232,240,0.08)' : 'rgba(20,20,20,0.6)',
-                  border: isWhite ? '2.5px solid rgba(226,232,240,0.2)' : '2.5px solid rgba(40,40,40,0.9)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: "'Bebas Neue', sans-serif", fontSize: '2rem',
-                  color: isWhite ? '#94a3b8' : '#475569',
-                }}>
+              ? <img src={player.photo_url} alt={player.name} style={{ width:80, height:80, borderRadius:'50%', objectFit:'cover', flexShrink:0, border: isWhite ? '2.5px solid rgba(226,232,240,0.35)' : '2.5px solid rgba(20,20,20,0.9)', boxShadow:'0 4px 20px rgba(0,0,0,0.4)' }} />
+              : <div style={{ width:80, height:80, borderRadius:'50%', flexShrink:0, background: isWhite ? 'rgba(226,232,240,0.08)' : 'rgba(20,20,20,0.6)', border: isWhite ? '2.5px solid rgba(226,232,240,0.2)' : '2.5px solid rgba(40,40,40,0.9)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Bebas Neue', sans-serif", fontSize:'2rem', color: isWhite ? '#94a3b8' : '#475569' }}>
                   {player.name.charAt(0).toUpperCase()}
                 </div>
             }
             <div style={{flex:1, minWidth:0}}>
-              <div style={{
-                fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase',
-                color: isWhite ? 'rgba(226,232,240,0.4)' : 'rgba(100,116,139,0.6)',
-                marginBottom: 3, fontWeight: 600,
-              }}>
+              <div style={{ fontSize:'0.65rem', letterSpacing:'0.12em', textTransform:'uppercase', color: isWhite ? 'rgba(226,232,240,0.4)' : 'rgba(100,116,139,0.6)', marginBottom:3, fontWeight:600 }}>
                 {isWhite ? '⚪ Equipa Branca' : '⚫ Equipa Preta'}
               </div>
               <div className="display-font" style={{fontSize:'1.8rem', color:'white', lineHeight:1, marginBottom:4}}>
@@ -335,17 +327,13 @@ export default async function PerfilJogador({ params }) {
               )}
               <div style={{display:'flex', gap:6, flexWrap:'wrap', marginTop:6}}>
                 {mvpTotal > 0 && (
-                  <div style={{display:'inline-flex', alignItems:'center', gap:4,
-                    background:'rgba(251,191,36,0.1)', border:'1px solid rgba(251,191,36,0.2)',
-                    borderRadius:8, padding:'3px 8px'}}>
+                  <div style={{ display:'inline-flex', alignItems:'center', gap:4, background:'rgba(251,191,36,0.1)', border:'1px solid rgba(251,191,36,0.2)', borderRadius:8, padding:'3px 8px' }}>
                     <span style={{fontSize:'0.7rem', color:'#f59e0b', fontWeight:700}}>⭐ {mvpTotal}× MVP</span>
                   </div>
                 )}
                 {streakType && streakCount >= 2 && (
-                  <div style={{display:'inline-flex', alignItems:'center', gap:4,
-                    background: streakBg, border: `1px solid ${streakBorder}`,
-                    borderRadius:8, padding:'3px 8px'}}>
-                    <span style={{fontSize:'0.7rem', color: streakColor, fontWeight:700}}>
+                  <div style={{ display:'inline-flex', alignItems:'center', gap:4, background:streakBg, border:`1px solid ${streakBorder}`, borderRadius:8, padding:'3px 8px' }}>
+                    <span style={{fontSize:'0.7rem', color:streakColor, fontWeight:700}}>
                       {streakCount}× {streakCount === 1 ? streakLabel : streakLabelPlural}
                     </span>
                   </div>
@@ -355,45 +343,90 @@ export default async function PerfilJogador({ params }) {
           </div>
         </div>
 
-        {/* Stats principais */}
-        <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:16}}>
+        {/* Stats principais — agora com 5 blocos incluindo assiduidade */}
+        <div style={{display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:8, marginBottom:8}}>
           {[
-            { val: jogos, lbl: 'Jogos' },
-            { val: vitorias, lbl: 'Vitórias' },
-            { val: derrotas, lbl: 'Derrotas' },
-            { val: `${pct}%`, lbl: 'Taxa V.' },
+            { val: jogos, lbl: 'Jogos', color: 'white' },
+            { val: vitorias, lbl: 'Vitórias', color: '#22c55e' },
+            { val: derrotas, lbl: 'Derrotas', color: '#ef4444' },
+            { val: empates, lbl: 'Empates', color: '#64748b' },
           ].map(s => (
-            <div key={s.lbl} className="stat-block" style={{border:'1px solid rgba(255,255,255,0.06)'}}>
-              <div className="val" style={{fontSize: s.lbl === 'Taxa V.' ? '1.6rem' : '2.2rem',
-                color: s.lbl === 'Taxa V.' ? (pct >= 60 ? '#22c55e' : pct >= 40 ? '#f59e0b' : jogos === 0 ? 'white' : '#ef4444') : 'white'
-              }}>{s.val}</div>
+            <div key={s.lbl} className="stat-block">
+              <div className="val" style={{color: s.color}}>{s.val}</div>
               <div className="lbl">{s.lbl}</div>
             </div>
           ))}
         </div>
 
-        {/* Forma recente + Sequência */}
+        {/* Taxa de vitória + Assiduidade em destaque */}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:16}}>
+          <div className="stat-block">
+            <div className="val" style={{fontSize:'1.6rem', color: pct >= 60 ? '#22c55e' : pct >= 40 ? '#f59e0b' : jogos === 0 ? 'white' : '#ef4444'}}>{pct}%</div>
+            <div className="lbl">Taxa Vitória</div>
+          </div>
+          <div className="stat-block">
+            <div className="val" style={{fontSize:'1.6rem', color: assiduidade >= 80 ? '#22c55e' : assiduidade >= 50 ? '#f59e0b' : '#ef4444'}}>{assiduidade}%</div>
+            <div className="lbl">Assiduidade</div>
+            <div style={{fontSize:'0.6rem', color:'#334155', marginTop:2}}>{jogos} de {totalJogos} jogos</div>
+          </div>
+        </div>
+
+        {/* Recordes */}
+        {(melhorSequencia > 0 || mvpTotal > 0) && (
+          <div className="section-card" style={{marginBottom:16}}>
+            <div className="section-title">🏅 Recordes Pessoais</div>
+            <div style={{display:'flex', gap:10, flexWrap:'wrap'}}>
+              {melhorSequencia >= 2 && (
+                <div className="record-badge">
+                  <span style={{fontSize:'1rem'}}>🔥</span>
+                  <div>
+                    <div style={{fontSize:'0.75rem', fontWeight:700, color:'#f59e0b'}}>{melhorSequencia} vitórias seguidas</div>
+                    <div style={{fontSize:'0.6rem', color:'#64748b'}}>Melhor sequência</div>
+                  </div>
+                </div>
+              )}
+              {mvpTotal > 0 && (
+                <div className="record-badge">
+                  <span style={{fontSize:'1rem'}}>⭐</span>
+                  <div>
+                    <div style={{fontSize:'0.75rem', fontWeight:700, color:'#f59e0b'}}>{mvpTotal}× MVP</div>
+                    <div style={{fontSize:'0.6rem', color:'#64748b'}}>Melhor em campo</div>
+                  </div>
+                </div>
+              )}
+              {assiduidade >= 80 && (
+                <div className="record-badge">
+                  <span style={{fontSize:'1rem'}}>📅</span>
+                  <div>
+                    <div style={{fontSize:'0.75rem', fontWeight:700, color:'#f59e0b'}}>{assiduidade}% presença</div>
+                    <div style={{fontSize:'0.6rem', color:'#64748b'}}>Alta assiduidade</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Forma recente — últimos 10 */}
         {jogos > 0 && (
           <div className="section-card" style={{marginBottom:16}}>
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12}}>
               <div className="section-title" style={{marginBottom:0}}>Forma recente</div>
               {streakType && (
-                <div style={{
-                  fontSize:'0.65rem', fontWeight:700, color: streakColor,
-                  background: streakBg, border:`1px solid ${streakBorder}`,
-                  borderRadius:8, padding:'3px 8px',
-                }}>
-                  {streakCount} {streakCount === 1 ? streakLabel : streakLabelPlural} seguida{streakCount > 1 && streakType !== 'V' ? 's' : streakCount > 1 ? 's' : ''}
+                <div style={{ fontSize:'0.65rem', fontWeight:700, color:streakColor, background:streakBg, border:`1px solid ${streakBorder}`, borderRadius:8, padding:'3px 8px' }}>
+                  {streakCount} {streakCount === 1 ? streakLabel : streakLabelPlural} seguida{streakCount > 1 ? 's' : ''}
                 </div>
               )}
             </div>
-            <div style={{display:'flex', gap:8, alignItems:'center'}}>
+            <div style={{display:'flex', gap:6, alignItems:'center', flexWrap:'wrap'}}>
               {forma.map((res, i) => (
                 <div key={i} className={`forma-dot forma-${res}`}>{res}</div>
               ))}
               {forma.length === 0 && <span style={{fontSize:'0.8rem', color:'#334155'}}>Sem jogos</span>}
-              {jogos > 5 && <span style={{fontSize:'0.68rem', color:'#334155', marginLeft:4}}>← últimos {forma.length}</span>}
             </div>
+            {jogos > 10 && (
+              <div style={{fontSize:'0.65rem', color:'#334155', marginTop:8}}>← últimos {forma.length} de {jogos} jogos</div>
+            )}
           </div>
         )}
 
@@ -402,8 +435,8 @@ export default async function PerfilJogador({ params }) {
           <div className="section-title">Por competição</div>
           <div style={{display:'flex', flexDirection:'column', gap:10}}>
             {[
-              { label: '👑 Campeonato', jogos: jogosLiga.length, vitorias: vitoriasLiga },
-              { label: '🏆 Taça', jogos: jogosTaca.length, vitorias: vitoriasTaca },
+              { label:'👑 Campeonato', jogos: jogosLiga.length, vitorias: vitoriasLiga },
+              { label:'🏆 Taça', jogos: jogosTaca.length, vitorias: vitoriasTaca },
             ].map(c => {
               const p = c.jogos > 0 ? Math.round((c.vitorias / c.jogos) * 100) : 0
               return (
@@ -411,13 +444,11 @@ export default async function PerfilJogador({ params }) {
                   <div style={{display:'flex', justifyContent:'space-between', marginBottom:5}}>
                     <span style={{fontSize:'0.8rem', color:'#94a3b8', fontWeight:600}}>{c.label}</span>
                     <span style={{fontSize:'0.8rem', color:'#64748b'}}>{c.vitorias}V / {c.jogos}J
-                      {c.jogos > 0 && <span style={{color: p >= 60 ? '#22c55e' : p >= 40 ? '#f59e0b' : '#ef4444', marginLeft:6, fontWeight:700}}>{p}%</span>}
+                      {c.jogos > 0 && <span style={{color: p>=60?'#22c55e':p>=40?'#f59e0b':'#ef4444', marginLeft:6, fontWeight:700}}>{p}%</span>}
                     </span>
                   </div>
                   <div style={{height:5, background:'rgba(255,255,255,0.06)', borderRadius:99, overflow:'hidden'}}>
-                    <div style={{height:'100%', width:`${p}%`, borderRadius:99,
-                      background: p >= 60 ? 'linear-gradient(90deg,#22c55e,#16a34a)' : p >= 40 ? 'linear-gradient(90deg,#f59e0b,#d97706)' : 'linear-gradient(90deg,#ef4444,#b91c1c)'
-                    }} />
+                    <div style={{height:'100%', width:`${p}%`, borderRadius:99, background: p>=60?'linear-gradient(90deg,#22c55e,#16a34a)':p>=40?'linear-gradient(90deg,#f59e0b,#d97706)':'linear-gradient(90deg,#ef4444,#b91c1c)'}} />
                   </div>
                 </div>
               )
@@ -425,31 +456,60 @@ export default async function PerfilJogador({ params }) {
           </div>
         </div>
 
+        {/* Colegas mais frequentes — NOVO */}
+        {colegasMaisFrequentes.length > 0 && (
+          <div className="section-card" style={{marginBottom:16}}>
+            <div className="section-title">🤝 Colegas mais frequentes</div>
+            <div>
+              {colegasMaisFrequentes.map((item, i) => {
+                const pctJuntos = jogos > 0 ? Math.round((item.count / jogos) * 100) : 0
+                const isCand = item.player?.team === 'white'
+                return (
+                  <a key={item.player?.id || i} href={`/jogadores/${item.player?.id}`} className="colega-row" style={{textDecoration:'none'}}>
+                    {item.player?.photo_url
+                      ? <img src={item.player.photo_url} alt={item.player.name} className="mini-avatar" style={{border: isCand ? '1px solid rgba(226,232,240,0.2)' : '1px solid rgba(40,40,40,0.8)'}} />
+                      : <div className={`mini-placeholder ${isCand ? 'mini-w' : 'mini-b'}`}>{item.player?.name?.charAt(0).toUpperCase()}</div>
+                    }
+                    <div style={{flex:1, minWidth:0}}>
+                      <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4}}>
+                        <span style={{fontSize:'0.82rem', fontWeight:600, color:'#cbd5e1'}}>{item.player?.name}</span>
+                        <span style={{fontSize:'0.72rem', color:'#475569', flexShrink:0, marginLeft:8}}>{item.count} jogos juntos</span>
+                      </div>
+                      <div style={{height:3, background:'rgba(255,255,255,0.06)', borderRadius:99, overflow:'hidden'}}>
+                        <div style={{height:'100%', width:`${pctJuntos}%`, borderRadius:99, background:'linear-gradient(90deg, rgba(99,102,241,0.6), rgba(99,102,241,0.3))'}} />
+                      </div>
+                    </div>
+                  </a>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Últimos jogos */}
-        {ultimos5.length > 0 && (
+        {ultimos10.length > 0 && (
           <div className="section-card" style={{marginBottom:16}}>
             <div className="section-title">Últimos jogos</div>
             <div style={{display:'flex', flexDirection:'column', gap:8}}>
-              {ultimos5.map((mp, i) => {
+              {ultimos10.map((mp, i) => {
                 const m = mp.matches
-                const ganhou = mp.played_for === 'white' ? m.white_wins > m.black_wins : m.black_wins > m.white_wins
-                const perdeu  = mp.played_for === 'white' ? m.white_wins < m.black_wins : m.black_wins < m.white_wins
-                const res = ganhou ? 'V' : perdeu ? 'D' : 'E'
-                const resClass = ganhou ? 'resultado-v' : perdeu ? 'resultado-d' : 'resultado-e'
+                const ganhou = mp.played_for==='white' ? m.white_wins>m.black_wins : m.black_wins>m.white_wins
+                const perdeu = mp.played_for==='white' ? m.white_wins<m.black_wins : m.black_wins<m.white_wins
+                const res = ganhou?'V':perdeu?'D':'E'
+                const resClass = ganhou?'resultado-v':perdeu?'resultado-d':'resultado-e'
                 return (
                   <div key={i} style={{display:'flex', alignItems:'center', gap:10}}>
                     <div className={`resultado-pill ${resClass}`}>{res}</div>
                     <div style={{flex:1}}>
                       <div style={{fontSize:'0.8rem', color:'#cbd5e1', fontWeight:500}}>
-                        {m.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'} · Série {m.series?.id}
+                        {m.phase==='cup'?'🏆 Taça':'👑 Camp.'} · Série {m.series?.id}
                         {m.match_number ? ` · ${labelJornada(m)}` : ''}
                       </div>
                       <div style={{fontSize:'0.7rem', color:'#475569'}}>
                         {new Date(m.date).toLocaleDateString('pt-PT', { day:'numeric', month:'short', year:'numeric' })}
                       </div>
                     </div>
-                    <div style={{fontSize:'0.85rem', fontWeight:700, color:'white',
-                      background:'rgba(255,255,255,0.06)', padding:'4px 10px', borderRadius:8}}>
+                    <div style={{fontSize:'0.85rem', fontWeight:700, color:'white', background:'rgba(255,255,255,0.06)', padding:'4px 10px', borderRadius:8}}>
                       {m.white_wins} — {m.black_wins}
                     </div>
                   </div>
@@ -472,12 +532,10 @@ export default async function PerfilJogador({ params }) {
             <div>
               {mvpWins.map((win) => (
                 <a key={win.matchId} href={`/mvp/${win.matchId}`} className="mvp-win-row">
-                  <div style={{width:32, height:32, borderRadius:8, background:'rgba(251,191,36,0.12)', border:'1px solid rgba(251,191,36,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.85rem', flexShrink:0}}>
-                    ⭐
-                  </div>
+                  <div style={{width:32, height:32, borderRadius:8, background:'rgba(251,191,36,0.12)', border:'1px solid rgba(251,191,36,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.85rem', flexShrink:0}}>⭐</div>
                   <div style={{flex:1}}>
                     <div style={{fontSize:'0.8rem', color:'#cbd5e1', fontWeight:500}}>
-                      {win.match?.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'} · Série {win.match?.series_id}
+                      {win.match?.phase==='cup'?'🏆 Taça':'👑 Camp.'} · Série {win.match?.series_id}
                       {win.match?.match_number ? ` · ${labelJornada(win.match)}` : ''}
                     </div>
                     <div style={{fontSize:'0.7rem', color:'#475569'}}>
@@ -485,7 +543,7 @@ export default async function PerfilJogador({ params }) {
                     </div>
                   </div>
                   <div style={{fontSize:'0.75rem', fontWeight:700, color:'#f59e0b', background:'rgba(251,191,36,0.08)', padding:'3px 8px', borderRadius:8, flexShrink:0}}>
-                    {win.votos} {win.votos === 1 ? 'voto' : 'votos'} →
+                    {win.votos} {win.votos===1?'voto':'votos'} →
                   </div>
                 </a>
               ))}
@@ -493,7 +551,7 @@ export default async function PerfilJogador({ params }) {
           </div>
         )}
 
-        {/* Votos dados — em quem costuma votar */}
+        {/* Votos dados */}
         {votosDadosOrdenados.length > 0 && (
           <div className="section-card" style={{marginBottom:16}}>
             <div className="section-title">🗳️ Votos dados ({votesGiven?.length || 0})</div>
@@ -504,22 +562,16 @@ export default async function PerfilJogador({ params }) {
                 return (
                   <div key={item.player?.id || i} className="voto-row">
                     {item.player?.photo_url
-                      ? <img src={item.player.photo_url} alt={item.player.name} className="mini-avatar"
-                          style={{border: isCand ? '1px solid rgba(226,232,240,0.2)' : '1px solid rgba(40,40,40,0.8)'}} />
-                      : <div className={`mini-placeholder ${isCand ? 'mini-w' : 'mini-b'}`}>
-                          {item.player?.name?.charAt(0).toUpperCase()}
-                        </div>
+                      ? <img src={item.player.photo_url} alt={item.player.name} className="mini-avatar" style={{border: isCand ? '1px solid rgba(226,232,240,0.2)' : '1px solid rgba(40,40,40,0.8)'}} />
+                      : <div className={`mini-placeholder ${isCand?'mini-w':'mini-b'}`}>{item.player?.name?.charAt(0).toUpperCase()}</div>
                     }
                     <div style={{flex:1, minWidth:0}}>
                       <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4}}>
                         <span style={{fontSize:'0.82rem', fontWeight:600, color:'#cbd5e1'}}>{item.player?.name}</span>
-                        <span style={{fontSize:'0.72rem', color:'#475569', flexShrink:0, marginLeft:8}}>
-                          {item.count}× <span style={{color:'#64748b'}}>({pctVotos}%)</span>
-                        </span>
+                        <span style={{fontSize:'0.72rem', color:'#475569', flexShrink:0, marginLeft:8}}>{item.count}× <span style={{color:'#64748b'}}>({pctVotos}%)</span></span>
                       </div>
                       <div style={{height:3, background:'rgba(255,255,255,0.06)', borderRadius:99, overflow:'hidden'}}>
-                        <div style={{height:'100%', width:`${pctVotos}%`, borderRadius:99,
-                          background:'linear-gradient(90deg, rgba(251,191,36,0.6), rgba(251,191,36,0.3))'}} />
+                        <div style={{height:'100%', width:`${pctVotos}%`, borderRadius:99, background:'linear-gradient(90deg, rgba(251,191,36,0.6), rgba(251,191,36,0.3))'}} />
                       </div>
                     </div>
                   </div>
@@ -528,7 +580,6 @@ export default async function PerfilJogador({ params }) {
             </div>
           </div>
         )}
-
       </div>
     </>
   )
