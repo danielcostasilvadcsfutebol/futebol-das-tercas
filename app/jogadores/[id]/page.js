@@ -203,7 +203,7 @@ export default async function PerfilJogador({ params }) {
         }
         .stat-block .lbl {
           font-size: 0.62rem;
-          color: #475569;
+          color: #94a3b8;
           text-transform: uppercase;
           letter-spacing: 0.1em;
           margin-top: 3px;
@@ -219,7 +219,7 @@ export default async function PerfilJogador({ params }) {
           font-family: 'Bebas Neue', sans-serif;
           font-size: 0.95rem;
           letter-spacing: 0.1em;
-          color: #64748b;
+          color: #94a3b8;
           text-transform: uppercase;
           margin-bottom: 12px;
         }
@@ -320,9 +320,9 @@ export default async function PerfilJogador({ params }) {
                 {player.name}
               </div>
               {player.birth_date && (
-                <div style={{fontSize:'0.75rem', color:'#475569'}}>
+                <div style={{fontSize:'0.75rem', color:'#94a3b8'}}>
                   {new Date(player.birth_date).toLocaleDateString('pt-PT', { day:'numeric', month:'long', year:'numeric' })}
-                  {idade !== null && <span style={{color:'#64748b'}}> ({idade} anos)</span>}
+                  {idade !== null && <span style={{color:'#94a3b8'}}> ({idade} anos)</span>}
                 </div>
               )}
               <div style={{display:'flex', gap:6, flexWrap:'wrap', marginTop:6}}>
@@ -343,13 +343,12 @@ export default async function PerfilJogador({ params }) {
           </div>
         </div>
 
-        {/* Stats principais — agora com 5 blocos incluindo assiduidade */}
-        <div style={{display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:8, marginBottom:8}}>
+        {/* Stats principais */}
+        <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:8}}>
           {[
             { val: jogos, lbl: 'Jogos', color: 'white' },
             { val: vitorias, lbl: 'Vitórias', color: '#22c55e' },
             { val: derrotas, lbl: 'Derrotas', color: '#ef4444' },
-            { val: empates, lbl: 'Empates', color: '#64748b' },
           ].map(s => (
             <div key={s.lbl} className="stat-block">
               <div className="val" style={{color: s.color}}>{s.val}</div>
@@ -358,54 +357,18 @@ export default async function PerfilJogador({ params }) {
           ))}
         </div>
 
-        {/* Taxa de vitória + Assiduidade em destaque */}
+        {/* % Vitória + Assiduidade */}
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:16}}>
           <div className="stat-block">
             <div className="val" style={{fontSize:'1.6rem', color: pct >= 60 ? '#22c55e' : pct >= 40 ? '#f59e0b' : jogos === 0 ? 'white' : '#ef4444'}}>{pct}%</div>
-            <div className="lbl">Taxa Vitória</div>
+            <div className="lbl">% Vitória</div>
           </div>
           <div className="stat-block">
             <div className="val" style={{fontSize:'1.6rem', color: assiduidade >= 80 ? '#22c55e' : assiduidade >= 50 ? '#f59e0b' : '#ef4444'}}>{assiduidade}%</div>
             <div className="lbl">Assiduidade</div>
-            <div style={{fontSize:'0.6rem', color:'#334155', marginTop:2}}>{jogos} de {totalJogos} jogos</div>
+            <div style={{fontSize:'0.6rem', color:'#94a3b8', marginTop:2}}>{jogos} de {totalJogos} jogos</div>
           </div>
         </div>
-
-        {/* Recordes */}
-        {(melhorSequencia > 0 || mvpTotal > 0) && (
-          <div className="section-card" style={{marginBottom:16}}>
-            <div className="section-title">🏅 Recordes Pessoais</div>
-            <div style={{display:'flex', gap:10, flexWrap:'wrap'}}>
-              {melhorSequencia >= 2 && (
-                <div className="record-badge">
-                  <span style={{fontSize:'1rem'}}>🔥</span>
-                  <div>
-                    <div style={{fontSize:'0.75rem', fontWeight:700, color:'#f59e0b'}}>{melhorSequencia} vitórias seguidas</div>
-                    <div style={{fontSize:'0.6rem', color:'#64748b'}}>Melhor sequência</div>
-                  </div>
-                </div>
-              )}
-              {mvpTotal > 0 && (
-                <div className="record-badge">
-                  <span style={{fontSize:'1rem'}}>⭐</span>
-                  <div>
-                    <div style={{fontSize:'0.75rem', fontWeight:700, color:'#f59e0b'}}>{mvpTotal}× MVP</div>
-                    <div style={{fontSize:'0.6rem', color:'#64748b'}}>Melhor em campo</div>
-                  </div>
-                </div>
-              )}
-              {assiduidade >= 80 && (
-                <div className="record-badge">
-                  <span style={{fontSize:'1rem'}}>📅</span>
-                  <div>
-                    <div style={{fontSize:'0.75rem', fontWeight:700, color:'#f59e0b'}}>{assiduidade}% presença</div>
-                    <div style={{fontSize:'0.6rem', color:'#64748b'}}>Alta assiduidade</div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Forma recente — últimos 10 */}
         {jogos > 0 && (
@@ -422,10 +385,10 @@ export default async function PerfilJogador({ params }) {
               {forma.map((res, i) => (
                 <div key={i} className={`forma-dot forma-${res}`}>{res}</div>
               ))}
-              {forma.length === 0 && <span style={{fontSize:'0.8rem', color:'#334155'}}>Sem jogos</span>}
+              {forma.length === 0 && <span style={{fontSize:'0.8rem', color:'#94a3b8'}}>Sem jogos</span>}
             </div>
             {jogos > 10 && (
-              <div style={{fontSize:'0.65rem', color:'#334155', marginTop:8}}>← últimos {forma.length} de {jogos} jogos</div>
+              <div style={{fontSize:'0.65rem', color:'#94a3b8', marginTop:8}}>← últimos {forma.length} de {jogos} jogos</div>
             )}
           </div>
         )}
@@ -442,8 +405,8 @@ export default async function PerfilJogador({ params }) {
               return (
                 <div key={c.label}>
                   <div style={{display:'flex', justifyContent:'space-between', marginBottom:5}}>
-                    <span style={{fontSize:'0.8rem', color:'#94a3b8', fontWeight:600}}>{c.label}</span>
-                    <span style={{fontSize:'0.8rem', color:'#64748b'}}>{c.vitorias}V / {c.jogos}J
+                    <span style={{fontSize:'0.8rem', color:'#e2e8f0', fontWeight:600}}>{c.label}</span>
+                    <span style={{fontSize:'0.8rem', color:'#94a3b8'}}>{c.vitorias}V / {c.jogos}J
                       {c.jogos > 0 && <span style={{color: p>=60?'#22c55e':p>=40?'#f59e0b':'#ef4444', marginLeft:6, fontWeight:700}}>{p}%</span>}
                     </span>
                   </div>
@@ -459,7 +422,7 @@ export default async function PerfilJogador({ params }) {
         {/* Colegas mais frequentes — NOVO */}
         {colegasMaisFrequentes.length > 0 && (
           <div className="section-card" style={{marginBottom:16}}>
-            <div className="section-title">🤝 Colegas mais frequentes</div>
+            <div className="section-title">🤝 Colega com quem mais jogas</div>
             <div>
               {colegasMaisFrequentes.map((item, i) => {
                 const pctJuntos = jogos > 0 ? Math.round((item.count / jogos) * 100) : 0
@@ -472,8 +435,8 @@ export default async function PerfilJogador({ params }) {
                     }
                     <div style={{flex:1, minWidth:0}}>
                       <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4}}>
-                        <span style={{fontSize:'0.82rem', fontWeight:600, color:'#cbd5e1'}}>{item.player?.name}</span>
-                        <span style={{fontSize:'0.72rem', color:'#475569', flexShrink:0, marginLeft:8}}>{item.count} jogos juntos</span>
+                        <span style={{fontSize:'0.82rem', fontWeight:600, color:'#e2e8f0'}}>{item.player?.name}</span>
+                        <span style={{fontSize:'0.72rem', color:'#94a3b8', flexShrink:0, marginLeft:8}}>{item.count} jogos juntos</span>
                       </div>
                       <div style={{height:3, background:'rgba(255,255,255,0.06)', borderRadius:99, overflow:'hidden'}}>
                         <div style={{height:'100%', width:`${pctJuntos}%`, borderRadius:99, background:'linear-gradient(90deg, rgba(99,102,241,0.6), rgba(99,102,241,0.3))'}} />
@@ -486,12 +449,12 @@ export default async function PerfilJogador({ params }) {
           </div>
         )}
 
-        {/* Últimos jogos */}
-        {ultimos10.length > 0 && (
+        {/* Histórico completo */}
+        {jogosOrdenados.length > 0 && (
           <div className="section-card" style={{marginBottom:16}}>
-            <div className="section-title">Últimos jogos</div>
+            <div className="section-title">Histórico de jogos jogados por mim ({jogosOrdenados.length})</div>
             <div style={{display:'flex', flexDirection:'column', gap:8}}>
-              {ultimos10.map((mp, i) => {
+              {jogosOrdenados.map((mp, i) => {
                 const m = mp.matches
                 const ganhou = mp.played_for==='white' ? m.white_wins>m.black_wins : m.black_wins>m.white_wins
                 const perdeu = mp.played_for==='white' ? m.white_wins<m.black_wins : m.black_wins<m.white_wins
@@ -501,11 +464,11 @@ export default async function PerfilJogador({ params }) {
                   <div key={i} style={{display:'flex', alignItems:'center', gap:10}}>
                     <div className={`resultado-pill ${resClass}`}>{res}</div>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:'0.8rem', color:'#cbd5e1', fontWeight:500}}>
+                      <div style={{fontSize:'0.8rem', color:'#e2e8f0', fontWeight:500}}>
                         {m.phase==='cup'?'🏆 Taça':'👑 Camp.'} · Série {m.series?.id}
                         {m.match_number ? ` · ${labelJornada(m)}` : ''}
                       </div>
-                      <div style={{fontSize:'0.7rem', color:'#475569'}}>
+                      <div style={{fontSize:'0.7rem', color:'#94a3b8'}}>
                         {new Date(m.date).toLocaleDateString('pt-PT', { day:'numeric', month:'short', year:'numeric' })}
                       </div>
                     </div>
@@ -520,7 +483,7 @@ export default async function PerfilJogador({ params }) {
         )}
 
         {jogos === 0 && (
-          <div style={{textAlign:'center', color:'#334155', fontSize:'0.85rem', padding:'24px 0'}}>
+          <div style={{textAlign:'center', color:'#94a3b8', fontSize:'0.85rem', padding:'24px 0'}}>
             Ainda sem jogos registados.
           </div>
         )}
@@ -534,11 +497,11 @@ export default async function PerfilJogador({ params }) {
                 <a key={win.matchId} href={`/mvp/${win.matchId}`} className="mvp-win-row">
                   <div style={{width:32, height:32, borderRadius:8, background:'rgba(251,191,36,0.12)', border:'1px solid rgba(251,191,36,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.85rem', flexShrink:0}}>⭐</div>
                   <div style={{flex:1}}>
-                    <div style={{fontSize:'0.8rem', color:'#cbd5e1', fontWeight:500}}>
+                    <div style={{fontSize:'0.8rem', color:'#e2e8f0', fontWeight:500}}>
                       {win.match?.phase==='cup'?'🏆 Taça':'👑 Camp.'} · Série {win.match?.series_id}
                       {win.match?.match_number ? ` · ${labelJornada(win.match)}` : ''}
                     </div>
-                    <div style={{fontSize:'0.7rem', color:'#475569'}}>
+                    <div style={{fontSize:'0.7rem', color:'#94a3b8'}}>
                       {win.match?.date ? new Date(win.match.date).toLocaleDateString('pt-PT', { day:'numeric', month:'short', year:'numeric' }) : ''}
                     </div>
                   </div>
@@ -567,8 +530,8 @@ export default async function PerfilJogador({ params }) {
                     }
                     <div style={{flex:1, minWidth:0}}>
                       <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4}}>
-                        <span style={{fontSize:'0.82rem', fontWeight:600, color:'#cbd5e1'}}>{item.player?.name}</span>
-                        <span style={{fontSize:'0.72rem', color:'#475569', flexShrink:0, marginLeft:8}}>{item.count}× <span style={{color:'#64748b'}}>({pctVotos}%)</span></span>
+                        <span style={{fontSize:'0.82rem', fontWeight:600, color:'#e2e8f0'}}>{item.player?.name}</span>
+                        <span style={{fontSize:'0.72rem', color:'#94a3b8', flexShrink:0, marginLeft:8}}>{item.count}× <span style={{color:'#94a3b8'}}>({pctVotos}%)</span></span>
                       </div>
                       <div style={{height:3, background:'rgba(255,255,255,0.06)', borderRadius:99, overflow:'hidden'}}>
                         <div style={{height:'100%', width:`${pctVotos}%`, borderRadius:99, background:'linear-gradient(90deg, rgba(251,191,36,0.6), rgba(251,191,36,0.3))'}} />
