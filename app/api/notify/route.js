@@ -28,18 +28,10 @@ function createVapidJWT(audience, email, vapidPublicKey, vapidPrivateKey) {
   const input = `${header}.${claims}`
   const pubBuf = fromB64u(vapidPublicKey)
   const privKey = crypto.createPrivateKey({
-    key: {
-      kty: 'EC', crv: 'P-256',
-      d: vapidPrivateKey,
-      x: b64u(pubBuf.slice(1, 33)),
-      y: b64u(pubBuf.slice(33, 65)),
-    },
+    key: { kty: 'EC', crv: 'P-256', d: vapidPrivateKey, x: b64u(pubBuf.slice(1, 33)), y: b64u(pubBuf.slice(33, 65)) },
     format: 'jwk',
   })
-  const sig = crypto.sign('SHA256', Buffer.from(input), {
-    key: privKey,
-    dsaEncoding: 'ieee-p1363',
-  })
+  const sig = crypto.sign('SHA256', Buffer.from(input), { key: privKey, dsaEncoding: 'ieee-p1363' })
   return `${input}.${b64u(sig)}`
 }
 
@@ -89,9 +81,7 @@ async function sendPush(subscription, payload) {
     },
     body,
   })
-  if (res.status !== 200 && res.status !== 201) {
-    throw new Error(`Push falhou: ${res.status}`)
-  }
+  if (res.status !== 200 && res.status !== 201) throw new Error(`Push falhou: ${res.status}`)
 }
 
 export async function POST(request) {
@@ -104,20 +94,30 @@ export async function POST(request) {
     if (authHeader !== process.env.ADMIN_NOTIFY_KEY) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
-    const { title, body, url } = await request.json()
-    const { data: rows, error } = await supabase
-      .from('push_subscriptions')
-      .select('subscription')
+
+    const { title, body, url, player_ids } = await request.json()
+
+    // Se player_ids fornecido e não vazio → filtra por jogadores
+    // Se não → envia para todos
+    let query = supabase.from('push_subscriptions').select('subscription, player_id')
+    if (player_ids && player_ids.length > 0) {
+      query = query.in('player_id', player_ids)
+    }
+
+    const { data: rows, error } = await query
     if (error) throw error
+
     const payload = JSON.stringify({ title, body, url: url || '/' })
+
     const results = await Promise.allSettled(
-      rows.map((row) => sendPush(row.subscription, payload))
+      rows.map(row => sendPush(row.subscription, payload))
     )
-    const enviadas = results.filter((r) => r.status === 'fulfilled').length
-    const falhadas = results.filter((r) => r.status === 'rejected').length
-    return NextResponse.json({ enviadas, falhadas })
+
+    const enviadas = results.filter(r => r.status === 'fulfilled').length
+    const falhadas = results.filter(r => r.status === 'rejected').length
+
+    return NextResponse.json({ enviadas, falhadas, total: rows.length })
   } catch (err) {
-    console.error('Erro:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
