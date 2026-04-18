@@ -30,7 +30,6 @@ export default async function Home() {
     ? Math.max(0, Math.round((new Date(matchVotacao.voting_closes_at) - new Date()) / 3600000))
     : null
 
-  // Último MVP — jogo mais recente com votos e votação fechada
   let ultimoMvp = null
   if (!matchVotacao) {
     const { data: votosRecentes } = await supabase
@@ -67,8 +66,6 @@ export default async function Home() {
   const mostrarTaca = series && (activeComp === 'cup' || activeComp === 'both')
 
   const META_LIGA = 11
-  const ligaTotal = series ? series.league_white_wins + series.league_black_wins : 0
-  const ligaPctBrancos = ligaTotal > 0 ? Math.round((series.league_white_wins / ligaTotal) * 100) : 50
 
   const labelJornada = (m) => {
     if (!m?.match_number) return null
@@ -114,17 +111,25 @@ export default async function Home() {
         .badge-cup    { background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2); color: #818cf8; }
 
         .score-team { flex: 1; text-align: center; }
-        .score-team-label { font-size: 0.62rem; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 2px; }
-        .vs-sep { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; color: #1e293b; padding: 0 6px; }
+        .score-team-label {
+          font-size: 0.72rem;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          margin-bottom: 2px;
+          font-weight: 600;
+        }
+        .vs-sep { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; color: #334155; padding: 0 6px; }
 
         .liga-bar-wrap { margin-top: 12px; }
         .liga-bar-labels { display: flex; justify-content: space-between; margin-bottom: 4px; }
-        .liga-bar-label { font-size: 0.6rem; color: #475569; }
+        .liga-bar-label { font-size: 0.6rem; color: #94a3b8; }
         .liga-bar-bg { height: 6px; background: rgba(255,255,255,0.05); border-radius: 99px; overflow: hidden; position: relative; }
         .liga-bar-white { height: 100%; border-radius: 99px 0 0 99px; background: linear-gradient(90deg, rgba(226,232,240,0.8), rgba(148,163,184,0.5)); transition: width 0.5s; }
         .liga-bar-black { position: absolute; right: 0; top: 0; height: 100%; border-radius: 0 99px 99px 0; background: linear-gradient(270deg, rgba(100,116,139,0.6), rgba(51,65,85,0.4)); }
         .liga-meta { display: flex; justify-content: space-between; margin-top: 5px; }
-        .liga-meta-val { font-size: 0.6rem; color: #334155; }
+        .liga-meta-val { font-size: 0.65rem; color: #94a3b8; font-weight: 500; }
+        .liga-meta-center { font-size: 0.65rem; color: #475569; }
 
         .palmares-card {
           background: linear-gradient(135deg, rgba(30,41,59,0.97), rgba(10,15,30,0.99));
@@ -135,7 +140,7 @@ export default async function Home() {
         .team-col { flex: 1; padding: 14px 12px; text-align: center; }
         .team-col-white { border-right: 1px solid rgba(255,255,255,0.05); }
         .trophy-count { font-family: 'Bebas Neue', sans-serif; font-size: 2.8rem; line-height: 1; color: white; }
-        .trophy-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.1em; color: #475569; margin-top: 2px; }
+        .trophy-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: #94a3b8; margin-top: 2px; }
 
         .comp-bar-bg { height: 3px; background: rgba(100,116,139,0.2); border-radius: 99px; overflow: hidden; margin: 8px 14px 0; }
         .comp-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, rgba(226,232,240,0.6), rgba(226,232,240,0.3)); }
@@ -168,7 +173,7 @@ export default async function Home() {
 
       <div className="home-page space-y-4 pb-10">
 
-        {/* Header compacto */}
+        {/* Header */}
         <div style={{paddingTop:10, paddingBottom:2}}>
           <div style={{display:'flex', alignItems:'baseline', gap:8, marginBottom:1}}>
             <span style={{fontSize:'1.4rem'}}>⚽</span>
@@ -176,7 +181,7 @@ export default async function Home() {
               Futebol das Terças
             </h1>
           </div>
-          <p style={{fontSize:'0.68rem', color:'#334155', letterSpacing:'0.08em', textTransform:'uppercase', fontWeight:600}}>
+          <p style={{fontSize:'0.68rem', color:'#94a3b8', letterSpacing:'0.08em', textTransform:'uppercase', fontWeight:600}}>
             Jogos · Resultados · Títulos
           </p>
         </div>
@@ -203,7 +208,7 @@ export default async function Home() {
                   Vota no melhor em campo{matchVotacao.match_number ? ` · ${labelJornada(matchVotacao)}` : ''}
                 </div>
                 {horasVotacao !== null && (
-                  <div style={{fontSize:'0.7rem', color:'#78716c', marginTop:2}}>
+                  <div style={{fontSize:'0.7rem', color:'#94a3b8', marginTop:2}}>
                     Fecha em {horasVotacao}h
                   </div>
                 )}
@@ -215,7 +220,7 @@ export default async function Home() {
           </a>
         )}
 
-        {/* Último MVP — clicável para ver detalhe de votos */}
+        {/* Último MVP */}
         {!matchVotacao && ultimoMvp && (
           <a href={`/mvp/${ultimoMvp.matchId}`} className="mvp-card-link">
             <div style={{position:'absolute', right:-8, top:-8, fontSize:'5rem', opacity:0.05, transform:'rotate(15deg)', color:'#f59e0b'}}>★</div>
@@ -233,7 +238,7 @@ export default async function Home() {
                 <div style={{fontFamily:"'Bebas Neue',sans-serif", fontSize:'1.4rem', color:'white', lineHeight:1, letterSpacing:'0.04em'}}>
                   {ultimoMvp.player.name}
                 </div>
-                <div style={{fontSize:'0.7rem', color:'#78716c', marginTop:3}}>
+                <div style={{fontSize:'0.7rem', color:'#94a3b8', marginTop:3}}>
                   {ultimoMvp.votos} {ultimoMvp.votos === 1 ? 'voto' : 'votos'} · {ultimoMvp.match?.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'} · Série {ultimoMvp.match?.series_id}
                   {ultimoMvp.match?.match_number ? ` · ${labelJornada(ultimoMvp.match)}` : ''}
                 </div>
@@ -242,7 +247,7 @@ export default async function Home() {
                 <div style={{fontFamily:"'Bebas Neue',sans-serif", fontSize:'2.5rem', color:'#f59e0b', lineHeight:1, textShadow:'0 0 20px rgba(251,191,36,0.3)'}}>
                   {ultimoMvp.votos}
                 </div>
-                <div style={{fontSize:'0.55rem', color:'#78350f', letterSpacing:'0.06em', textTransform:'uppercase', marginTop:2}}>
+                <div style={{fontSize:'0.55rem', color:'#94a3b8', letterSpacing:'0.06em', textTransform:'uppercase', marginTop:2}}>
                   Ver votos →
                 </div>
               </div>
@@ -294,7 +299,7 @@ export default async function Home() {
                       </div>
                       <div className="liga-meta">
                         <span className="liga-meta-val">⚪ {series.league_white_wins}/{META_LIGA}</span>
-                        <span className="liga-meta-val" style={{color:'#1e293b'}}>melhor de {META_LIGA*2-1}</span>
+                        <span className="liga-meta-center">melhor de {META_LIGA*2-1}</span>
                         <span className="liga-meta-val">{series.league_black_wins}/{META_LIGA} ⚫</span>
                       </div>
                     </div>
@@ -340,7 +345,7 @@ export default async function Home() {
           ].map(l => (
             <a key={l.href} href={l.href} className="quick-link">
               <div style={{fontSize:'1.5rem', marginBottom:4}}>{l.icon}</div>
-              <div className="display-font" style={{fontSize:'0.85rem', color:'#94a3b8', letterSpacing:'0.06em'}}>{l.label}</div>
+              <div className="display-font" style={{fontSize:'0.85rem', color:'#e2e8f0', letterSpacing:'0.06em'}}>{l.label}</div>
             </a>
           ))}
         </div>
