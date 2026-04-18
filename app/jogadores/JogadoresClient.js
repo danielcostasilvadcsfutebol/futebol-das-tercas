@@ -110,9 +110,9 @@ export default function JogadoresClient({ todosAtivos, inativos, ultimoMvp }) {
           </button>
         </div>
 
-        {/* MVP do último jogo — só quando não há votação aberta */}
+        {/* MVP do último jogo — clicável, só quando não há votação aberta */}
         {filtro === 'all' && ultimoMvp && (
-          <div className="mvp-card">
+          <a href={`/mvp/${ultimoMvp.matchId}`} className="mvp-card" style={{display:'block', textDecoration:'none'}}>
             <div style={{fontSize:'0.65rem', color:'#f59e0b', letterSpacing:'0.12em', textTransform:'uppercase', fontWeight:700, marginBottom:8}}>⭐ Melhor em Campo — Último Jogo</div>
             <div style={{display:'flex', alignItems:'center', gap:12}}>
               {ultimoMvp.player.photo_url
@@ -128,11 +128,14 @@ export default function JogadoresClient({ todosAtivos, inativos, ultimoMvp }) {
                   {ultimoMvp.match && ` · ${ultimoMvp.match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'} · Série ${ultimoMvp.match.series_id}`}
                 </div>
               </div>
-              <div style={{fontFamily:"'Bebas Neue', sans-serif", fontSize:'2.8rem', color:'#f59e0b', lineHeight:1, textShadow:'0 0 30px rgba(251,191,36,0.3)'}}>
-                {ultimoMvp.votos}
+              <div style={{display:'flex', flexDirection:'column', alignItems:'center', flexShrink:0}}>
+                <div style={{fontFamily:"'Bebas Neue', sans-serif", fontSize:'2.8rem', color:'#f59e0b', lineHeight:1, textShadow:'0 0 30px rgba(251,191,36,0.3)'}}>
+                  {ultimoMvp.votos}
+                </div>
+                <div style={{fontSize:'0.55rem', color:'#78350f', letterSpacing:'0.06em', textTransform:'uppercase', marginTop:1}}>Ver votos →</div>
               </div>
             </div>
-          </div>
+          </a>
         )}
 
         {/* Ranking */}
