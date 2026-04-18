@@ -1,380 +1,210 @@
-import { supabase } from '../lib/supabase'
-import { notFound } from 'next/navigation'
+'use client'
+import { useState } from 'react'
 
-export const revalidate = 0
+export default function JogadoresClient({ todosAtivos, inativos, ultimoMvp }) {
+  const [filtro, setFiltro] = useState('all')
 
-function calcIdade(birthDate) {
-  if (!birthDate) return null
-  const hoje = new Date()
-  const nasc = new Date(birthDate)
-  let idade = hoje.getFullYear() - nasc.getFullYear()
-  const m = hoje.getMonth() - nasc.getMonth()
-  if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) idade--
-  return idade
-}
-
-export default async function PerfilJogador({ params }) {
-  const { data: player } = await supabase
-    .from('players')
-    .select(`
-      *,
-      match_players (
-        played_for,
-        matches (
-          id,
-          date,
-          white_wins,
-          black_wins,
-          phase,
-          match_number,
-          series (id)
-        )
-      )
-    `)
-    .eq('id', params.id)
-    .single()
-
-  if (!player) notFound()
-
-  // Votos recebidos por este jogador (para saber em que jogos foi votado)
-  const { data: votesReceived } = await supabase
-    .from('mvp_votes')
-    .select('match_id, voted_at, matches(date, phase, match_number, series_id)')
-    .eq('voted_for_player_id', params.id)
-    .order('voted_at', { ascending: false })
-
-  // IDs dos jogos onde este jogador recebeu votos
-  const matchIdsWithVotes = [...new Set(votesReceived?.map(v => v.match_id) || [])]
-
-  // Para cada um desses jogos, buscar todos os votos para determinar o vencedor
-  let mvpWins = []
-  if (matchIdsWithVotes.length > 0) {
-    const { data: allVotesInMatches } = await supabase
-      .from('mvp_votes')
-      .select('match_id, voted_for_player_id')
-      .in('match_id', matchIdsWithVotes)
-
-    // Agrupar por jogo e verificar se este jogador ganhou
-    const votesByMatch = {}
-    allVotesInMatches?.forEach(v => {
-      if (!votesByMatch[v.match_id]) votesByMatch[v.match_id] = {}
-      votesByMatch[v.match_id][v.voted_for_player_id] = (votesByMatch[v.match_id][v.voted_for_player_id] || 0) + 1
-    })
-
-    mvpWins = Object.entries(votesByMatch)
-      .filter(([, matchVotes]) => {
-        const sorted = Object.entries(matchVotes).sort((a, b) => b[1] - a[1])
-        return sorted[0]?.[0] === params.id
-      })
-      .map(([matchId, matchVotes]) => {
-        const matchInfo = votesReceived?.find(v => String(v.match_id) === matchId)
-        return {
-          matchId,
-          match: matchInfo?.matches,
-          votos: matchVotes[params.id] || 0,
-        }
-      })
-      .sort((a, b) => new Date(b.match?.date || 0) - new Date(a.match?.date || 0))
-  }
-
-  // Estatísticas gerais
-  const comResultado = player.match_players?.filter(
-    mp => mp.matches?.white_wins !== null && mp.matches?.black_wins !== null
-  ) || []
-
-  const jogos = comResultado.length
-  const vitorias = comResultado.filter(mp => {
-    if (mp.played_for === 'white') return mp.matches.white_wins > mp.matches.black_wins
-    if (mp.played_for === 'black') return mp.matches.black_wins > mp.matches.white_wins
-    return false
-  }).length
-  const derrotas = comResultado.filter(mp => {
-    if (mp.played_for === 'white') return mp.matches.white_wins < mp.matches.black_wins
-    if (mp.played_for === 'black') return mp.matches.black_wins < mp.matches.white_wins
-    return false
-  }).length
-  const empates = jogos - vitorias - derrotas
-  const pct = jogos > 0 ? Math.round((vitorias / jogos) * 100) : 0
-  const mvpTotal = mvpWins.length  // vitórias MVP, não total de votos
-
-  const jogosLiga = comResultado.filter(mp => mp.matches.phase === 'league')
-  const jogosTaca = comResultado.filter(mp => mp.matches.phase === 'cup')
-  const vitoriasLiga = jogosLiga.filter(mp =>
-    mp.played_for === 'white' ? mp.matches.white_wins > mp.matches.black_wins : mp.matches.black_wins > mp.matches.white_wins
-  ).length
-  const vitoriasTaca = jogosTaca.filter(mp =>
-    mp.played_for === 'white' ? mp.matches.white_wins > mp.matches.black_wins : mp.matches.black_wins > mp.matches.white_wins
-  ).length
-
-  // Últimos 5 jogos
-  const ultimos5 = [...comResultado]
-    .sort((a, b) => new Date(b.matches.date) - new Date(a.matches.date))
-    .slice(0, 5)
-
-  const idade = calcIdade(player.birth_date)
-  const isWhite = player.team === 'white'
-
-  const labelJornada = (m) => {
-    if (!m?.match_number) return null
-    return m.phase === 'cup' ? `Jogo ${m.match_number}` : `Jorn. ${m.match_number}`
-  }
+  const jogadoresFiltrados = filtro === 'all'
+    ? todosAtivos
+    : todosAtivos.filter(p => p.team === filtro)
 
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600;700&display=swap');
-        .perfil-page { font-family: 'DM Sans', sans-serif; }
+        .jogadores-page { font-family: 'DM Sans', sans-serif; }
         .display-font { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.04em; }
 
-        .stat-block {
-          background: linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.98));
-          border-radius: 14px;
-          padding: 14px;
-          text-align: center;
-          flex: 1;
+        .filter-tabs {
+          display: flex;
+          background: rgba(15,23,42,0.8);
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 12px;
+          padding: 3px;
+          gap: 3px;
         }
-        .stat-block .val {
-          font-family: 'Bebas Neue', sans-serif;
-          font-size: 2.2rem;
-          line-height: 1;
+        .filter-tab {
+          flex: 1;
+          padding: 7px 0;
+          border-radius: 9px;
+          font-size: 0.72rem;
+          font-weight: 600;
+          color: #475569;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          transition: all 0.15s;
+          letter-spacing: 0.03em;
+          font-family: 'DM Sans', sans-serif;
+        }
+        .filter-tab.active {
+          background: rgba(255,255,255,0.08);
           color: white;
         }
-        .stat-block .lbl {
-          font-size: 0.62rem;
-          color: #475569;
-          text-transform: uppercase;
-          letter-spacing: 0.1em;
-          margin-top: 3px;
-        }
+        .filter-tab-white.active { background: rgba(226,232,240,0.1); color: #e2e8f0; }
+        .filter-tab-black.active { background: rgba(51,65,85,0.5); color: #94a3b8; }
 
-        .section-card {
-          background: linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.98));
-          border: 1px solid rgba(255,255,255,0.07);
+        .card-player {
           border-radius: 16px;
-          padding: 16px;
+          transition: transform 0.15s ease;
+          position: relative;
+          overflow: hidden;
         }
-        .section-title {
-          font-family: 'Bebas Neue', sans-serif;
-          font-size: 0.95rem;
-          letter-spacing: 0.1em;
-          color: #64748b;
-          text-transform: uppercase;
-          margin-bottom: 12px;
+        .card-player:active { transform: scale(0.985); }
+        .card-white {
+          background: linear-gradient(135deg, rgba(30,41,59,0.95) 0%, rgba(15,23,42,0.98) 100%);
+          border: 1.5px solid rgba(226,232,240,0.35);
+          box-shadow: 0 0 0 0.5px rgba(255,255,255,0.06) inset;
+        }
+        .card-black {
+          background: linear-gradient(135deg, rgba(20,27,45,0.97) 0%, rgba(10,12,20,0.99) 100%);
+          border: 1.5px solid rgba(30,30,30,0.9);
+          box-shadow: 0 0 0 0.5px rgba(0,0,0,0.4) inset, 0 1px 0 rgba(255,255,255,0.04) inset;
         }
 
-        .resultado-pill {
-          width: 28px; height: 28px;
-          border-radius: 8px;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 0.7rem; font-weight: 700;
-          flex-shrink: 0;
-        }
-        .resultado-v { background: rgba(34,197,94,0.15); color: #22c55e; }
-        .resultado-d { background: rgba(239,68,68,0.15); color: #ef4444; }
-        .resultado-e { background: rgba(100,116,139,0.2); color: #94a3b8; }
+        .avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+        .avatar-placeholder { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Bebas Neue', sans-serif; font-size: 1.15rem; flex-shrink: 0; }
+        .avatar-white { background: rgba(226,232,240,0.1); border: 1.5px solid rgba(226,232,240,0.2); color: #94a3b8; }
+        .avatar-black { background: rgba(15,15,15,0.6); border: 1.5px solid rgba(60,60,60,0.8); color: #64748b; }
 
-        .back-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 0.8rem;
-          color: #475569;
-          text-decoration: none;
-          margin-bottom: 16px;
-          transition: color 0.15s;
-        }
-        .back-btn:hover { color: #94a3b8; }
+        .stat-pill { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 5px 9px; text-align: center; flex: 1; }
+        .stat-pill .val { font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; line-height: 1; color: white; }
+        .stat-pill .lbl { font-size: 0.58rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
 
-        .mvp-win-row {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 8px 0;
-          border-bottom: 1px solid rgba(255,255,255,0.04);
-          text-decoration: none;
-          transition: opacity 0.15s;
-        }
-        .mvp-win-row:last-child { border-bottom: none; }
-        .mvp-win-row:hover { opacity: 0.8; }
+        .pct-bar-bg { height: 3px; background: rgba(255,255,255,0.07); border-radius: 99px; overflow: hidden; margin-top: 7px; }
+        .pct-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #22c55e, #16a34a); }
+        .pct-bar-fill.low { background: linear-gradient(90deg, #ef4444, #b91c1c); }
+        .pct-bar-fill.mid { background: linear-gradient(90deg, #f59e0b, #d97706); }
+
+        .rank-num { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; color: #334155; width: 18px; text-align: center; flex-shrink: 0; }
+        .rank-1 { color: #f59e0b; }
+        .rank-2 { color: #94a3b8; }
+        .rank-3 { color: #b45309; }
+
+        .section-title { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 0.1em; color: #94a3b8; text-transform: uppercase; margin-bottom: 10px; padding-left: 2px; }
+
+        .mvp-card { background: linear-gradient(135deg, #1c1917 0%, #0f172a 100%); border: 1px solid rgba(251,191,36,0.25); border-radius: 16px; padding: 14px 16px; position: relative; overflow: hidden; }
+        .mvp-card::after { content: '★'; position: absolute; right: -4px; top: -8px; font-size: 5rem; opacity: 0.05; transform: rotate(15deg); color: #f59e0b; }
       `}</style>
 
-      <div className="perfil-page pb-12">
-        <a href="/jogadores" className="back-btn">← Jogadores</a>
+      <div className="jogadores-page space-y-5 pb-12">
 
-        {/* Hero — foto + nome + info */}
-        <div style={{
-          background: isWhite
-            ? 'linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.98))'
-            : 'linear-gradient(135deg, rgba(15,15,20,0.98), rgba(10,10,15,0.99))',
-          border: isWhite ? '1.5px solid rgba(226,232,240,0.3)' : '1.5px solid rgba(20,20,20,0.95)',
-          borderRadius: 20,
-          padding: '20px 16px',
-          marginBottom: 16,
-          position: 'relative',
-          overflow: 'hidden',
-        }}>
-          <div style={{
-            position: 'absolute', top: -30, right: -30,
-            width: 140, height: 140, borderRadius: '50%',
-            background: isWhite ? 'rgba(226,232,240,0.04)' : 'rgba(0,0,0,0.3)',
-            pointerEvents: 'none',
-          }} />
+        {/* Header */}
+        <div style={{paddingTop:10, paddingBottom:2}}>
+          <h1 className="display-font" style={{fontSize:'2.2rem', color:'white', lineHeight:1, marginBottom:2}}>Jogadores</h1>
+          <p style={{fontSize:'0.68rem', color:'#334155', letterSpacing:'0.08em', textTransform:'uppercase', fontWeight:600}}>
+            Estatísticas individuais
+          </p>
+        </div>
 
-          <div style={{display:'flex', alignItems:'center', gap:16}}>
-            {player.photo_url
-              ? <img src={player.photo_url} alt={player.name} style={{
-                  width: 80, height: 80, borderRadius: '50%', objectFit: 'cover', flexShrink: 0,
-                  border: isWhite ? '2.5px solid rgba(226,232,240,0.35)' : '2.5px solid rgba(20,20,20,0.9)',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-                }} />
-              : <div style={{
-                  width: 80, height: 80, borderRadius: '50%', flexShrink: 0,
-                  background: isWhite ? 'rgba(226,232,240,0.08)' : 'rgba(20,20,20,0.6)',
-                  border: isWhite ? '2.5px solid rgba(226,232,240,0.2)' : '2.5px solid rgba(40,40,40,0.9)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: "'Bebas Neue', sans-serif", fontSize: '2rem',
-                  color: isWhite ? '#94a3b8' : '#475569',
-                }}>
-                  {player.name.charAt(0).toUpperCase()}
+        {/* Filtro de equipa */}
+        <div className="filter-tabs">
+          <button className={`filter-tab ${filtro === 'all' ? 'active' : ''}`} onClick={() => setFiltro('all')}>
+            Todos ({todosAtivos.length})
+          </button>
+          <button className={`filter-tab filter-tab-white ${filtro === 'white' ? 'active' : ''}`} onClick={() => setFiltro('white')}>
+            ⚪ Brancos ({todosAtivos.filter(p => p.team === 'white').length})
+          </button>
+          <button className={`filter-tab filter-tab-black ${filtro === 'black' ? 'active' : ''}`} onClick={() => setFiltro('black')}>
+            ⚫ Pretos ({todosAtivos.filter(p => p.team === 'black').length})
+          </button>
+        </div>
+
+        {/* MVP do último jogo — só quando não há votação aberta */}
+        {filtro === 'all' && ultimoMvp && (
+          <div className="mvp-card">
+            <div style={{fontSize:'0.65rem', color:'#f59e0b', letterSpacing:'0.12em', textTransform:'uppercase', fontWeight:700, marginBottom:8}}>⭐ Melhor em Campo — Último Jogo</div>
+            <div style={{display:'flex', alignItems:'center', gap:12}}>
+              {ultimoMvp.player.photo_url
+                ? <img src={ultimoMvp.player.photo_url} alt={ultimoMvp.player.name} className="avatar" style={{border:'2px solid rgba(251,191,36,0.4)'}} />
+                : <div className="avatar-placeholder" style={{background:'rgba(251,191,36,0.1)', border:'2px solid rgba(251,191,36,0.3)', color:'#f59e0b', fontSize:'1.3rem'}}>
+                    {ultimoMvp.player.name.charAt(0).toUpperCase()}
+                  </div>
+              }
+              <div style={{flex:1}}>
+                <div style={{fontSize:'1.2rem', fontWeight:700, color:'white', lineHeight:1}}>{ultimoMvp.player.name}</div>
+                <div style={{fontSize:'0.7rem', color:'#78716c', marginTop:3}}>
+                  {ultimoMvp.votos} {ultimoMvp.votos === 1 ? 'voto' : 'votos'}
+                  {ultimoMvp.match && ` · ${ultimoMvp.match.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'} · Série ${ultimoMvp.match.series_id}`}
                 </div>
-            }
-
-            <div style={{flex:1, minWidth:0}}>
-              <div style={{
-                fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase',
-                color: isWhite ? 'rgba(226,232,240,0.4)' : 'rgba(100,116,139,0.6)',
-                marginBottom: 3, fontWeight: 600,
-              }}>
-                {isWhite ? '⚪ Equipa Branca' : '⚫ Equipa Preta'}
               </div>
-              <div className="display-font" style={{fontSize:'1.8rem', color:'white', lineHeight:1, marginBottom:4}}>
-                {player.name}
+              <div style={{fontFamily:"'Bebas Neue', sans-serif", fontSize:'2.8rem', color:'#f59e0b', lineHeight:1, textShadow:'0 0 30px rgba(251,191,36,0.3)'}}>
+                {ultimoMvp.votos}
               </div>
-              {player.birth_date && (
-                <div style={{fontSize:'0.75rem', color:'#475569'}}>
-                  {new Date(player.birth_date).toLocaleDateString('pt-PT', { day:'numeric', month:'long', year:'numeric' })}
-                  {idade !== null && <span style={{color:'#64748b'}}> ({idade} anos)</span>}
-                </div>
-              )}
-              {mvpTotal > 0 && (
-                <div style={{marginTop:6, display:'inline-flex', alignItems:'center', gap:4,
-                  background:'rgba(251,191,36,0.1)', border:'1px solid rgba(251,191,36,0.2)',
-                  borderRadius:8, padding:'3px 8px'}}>
-                  <span style={{fontSize:'0.7rem', color:'#f59e0b', fontWeight:700}}>⭐ {mvpTotal}× MVP</span>
-                </div>
-              )}
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Stats principais */}
-        <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:16}}>
-          {[
-            { val: jogos, lbl: 'Jogos' },
-            { val: vitorias, lbl: 'Vitórias' },
-            { val: derrotas, lbl: 'Derrotas' },
-            { val: `${pct}%`, lbl: 'Taxa V.' },
-          ].map(s => (
-            <div key={s.lbl} className="stat-block" style={{border:'1px solid rgba(255,255,255,0.06)'}}>
-              <div className="val" style={{fontSize: s.lbl === 'Taxa V.' ? '1.6rem' : '2.2rem',
-                color: s.lbl === 'Taxa V.' ? (pct >= 60 ? '#22c55e' : pct >= 40 ? '#f59e0b' : jogos === 0 ? 'white' : '#ef4444') : 'white'
-              }}>{s.val}</div>
-              <div className="lbl">{s.lbl}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Liga vs Taça */}
-        <div className="section-card" style={{marginBottom:16}}>
-          <div className="section-title">Por competição</div>
-          <div style={{display:'flex', flexDirection:'column', gap:10}}>
-            {[
-              { label: '👑 Campeonato', jogos: jogosLiga.length, vitorias: vitoriasLiga },
-              { label: '🏆 Taça', jogos: jogosTaca.length, vitorias: vitoriasTaca },
-            ].map(c => {
-              const p = c.jogos > 0 ? Math.round((c.vitorias / c.jogos) * 100) : 0
+        {/* Ranking */}
+        <div>
+          <div className="section-title">🏆 Ranking — % Vitórias</div>
+          <div style={{display:'flex', flexDirection:'column', gap:8}}>
+            {jogadoresFiltrados.map((player, idx) => {
+              const { jogos, vitorias, pct, mvp } = player.stats
+              const pctClass = pct >= 60 ? '' : pct >= 40 ? 'mid' : 'low'
+              const isWhite = player.team === 'white'
+              // rank global sempre baseado em todosAtivos
+              const rankGlobal = todosAtivos.findIndex(p => p.id === player.id) + 1
               return (
-                <div key={c.label}>
-                  <div style={{display:'flex', justifyContent:'space-between', marginBottom:5}}>
-                    <span style={{fontSize:'0.8rem', color:'#94a3b8', fontWeight:600}}>{c.label}</span>
-                    <span style={{fontSize:'0.8rem', color:'#64748b'}}>{c.vitorias}V / {c.jogos}J
-                      {c.jogos > 0 && <span style={{color: p >= 60 ? '#22c55e' : p >= 40 ? '#f59e0b' : '#ef4444', marginLeft:6, fontWeight:700}}>{p}%</span>}
-                    </span>
-                  </div>
-                  <div style={{height:5, background:'rgba(255,255,255,0.06)', borderRadius:99, overflow:'hidden'}}>
-                    <div style={{height:'100%', width:`${p}%`, borderRadius:99,
-                      background: p >= 60 ? 'linear-gradient(90deg,#22c55e,#16a34a)' : p >= 40 ? 'linear-gradient(90deg,#f59e0b,#d97706)' : 'linear-gradient(90deg,#ef4444,#b91c1c)'
-                    }} />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Últimos 5 jogos */}
-        {ultimos5.length > 0 && (
-          <div className="section-card" style={{marginBottom:16}}>
-            <div className="section-title">Últimos jogos</div>
-            <div style={{display:'flex', flexDirection:'column', gap:8}}>
-              {ultimos5.map((mp, i) => {
-                const m = mp.matches
-                const ganhou = mp.played_for === 'white' ? m.white_wins > m.black_wins : m.black_wins > m.white_wins
-                const perdeu = mp.played_for === 'white' ? m.white_wins < m.black_wins : m.black_wins < m.white_wins
-                const res = ganhou ? 'V' : perdeu ? 'D' : 'E'
-                const resClass = ganhou ? 'resultado-v' : perdeu ? 'resultado-d' : 'resultado-e'
-                return (
-                  <div key={i} style={{display:'flex', alignItems:'center', gap:10}}>
-                    <div className={`resultado-pill ${resClass}`}>{res}</div>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:'0.8rem', color:'#cbd5e1', fontWeight:500}}>
-                        {m.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'} · Série {m.series?.id}
-                        {m.match_number ? ` · ${labelJornada(m)}` : ''}
+                <a href={`/jogadores/${player.id}`} key={player.id}
+                  className={`card-player ${isWhite ? 'card-white' : 'card-black'}`}
+                  style={{padding:'12px 12px', display:'block', textDecoration:'none'}}>
+                  <div style={{display:'flex', alignItems:'center', gap:9}}>
+                    <span className={`rank-num ${rankGlobal <= 3 ? `rank-${rankGlobal}` : ''}`}>{rankGlobal}</span>
+                    {player.photo_url
+                      ? <img src={player.photo_url} alt={player.name} className={`avatar ${isWhite ? 'avatar-white' : 'avatar-black'}`}
+                          style={{border: isWhite ? '2px solid rgba(226,232,240,0.25)' : '2px solid rgba(30,30,30,0.9)'}} />
+                      : <div className={`avatar-placeholder ${isWhite ? 'avatar-white' : 'avatar-black'}`}>
+                          {player.name.charAt(0).toUpperCase()}
+                        </div>
+                    }
+                    <div style={{flex:1, minWidth:0}}>
+                      <div style={{display:'flex', alignItems:'center', gap:5, marginBottom:2, flexWrap:'wrap'}}>
+                        <span style={{fontWeight:700, fontSize:'0.95rem', color:'white'}}>{player.name}</span>
+                        {mvp > 0 && <span style={{fontSize:'0.65rem', color:'#f59e0b', fontWeight:600}}>⭐ ×{mvp}</span>}
                       </div>
-                      <div style={{fontSize:'0.7rem', color:'#475569'}}>
-                        {new Date(m.date).toLocaleDateString('pt-PT', { day:'numeric', month:'short', year:'numeric' })}
+                      <div style={{display:'flex', alignItems:'center', gap:8}}>
+                        <span style={{fontSize:'0.65rem', color:'#475569'}}>{jogos}J · {vitorias}V</span>
+                        <span style={{fontSize:'0.75rem', fontWeight:700, color: pct >= 60 ? '#22c55e' : pct >= 40 ? '#f59e0b' : jogos === 0 ? '#334155' : '#ef4444'}}>
+                          {jogos > 0 ? `${pct}%` : '— sem jogos'}
+                        </span>
                       </div>
+                      {jogos > 0 && (
+                        <div className="pct-bar-bg">
+                          <div className={`pct-bar-fill ${pctClass}`} style={{width:`${pct}%`}}></div>
+                        </div>
+                      )}
                     </div>
-                    <div style={{fontSize:'0.85rem', fontWeight:700, color:'white',
-                      background:'rgba(255,255,255,0.06)', padding:'4px 10px', borderRadius:8}}>
-                      {m.white_wins} — {m.black_wins}
+                    <div style={{display:'flex', gap:5, flexShrink:0}}>
+                      <div className="stat-pill"><div className="val">{jogos}</div><div className="lbl">Jogos</div></div>
+                      <div className="stat-pill"><div className="val">{vitorias}</div><div className="lbl">Vit.</div></div>
                     </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {jogos === 0 && (
-          <div style={{textAlign:'center', color:'#334155', fontSize:'0.85rem', padding:'24px 0'}}>
-            Ainda sem jogos registados.
-          </div>
-        )}
-
-        {/* MVP Wins — jogos em que ganhou o MVP */}
-        {mvpTotal > 0 && (
-          <div className="section-card" style={{marginBottom:16}}>
-            <div className="section-title">⭐ Vitórias MVP ({mvpTotal})</div>
-            <div>
-              {mvpWins.map((win) => (
-                <a key={win.matchId} href={`/mvp/${win.matchId}`} className="mvp-win-row">
-                  <div style={{width:32, height:32, borderRadius:8, background:'rgba(251,191,36,0.12)', border:'1px solid rgba(251,191,36,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.85rem', flexShrink:0}}>
-                    ⭐
-                  </div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:'0.8rem', color:'#cbd5e1', fontWeight:500}}>
-                      {win.match?.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'} · Série {win.match?.series_id}
-                      {win.match?.match_number ? ` · ${labelJornada(win.match)}` : ''}
-                    </div>
-                    <div style={{fontSize:'0.7rem', color:'#475569'}}>
-                      {win.match?.date ? new Date(win.match.date).toLocaleDateString('pt-PT', { day:'numeric', month:'short', year:'numeric' }) : ''}
-                    </div>
-                  </div>
-                  <div style={{fontSize:'0.75rem', fontWeight:700, color:'#f59e0b', background:'rgba(251,191,36,0.08)', padding:'3px 8px', borderRadius:8, flexShrink:0}}>
-                    {win.votos} {win.votos === 1 ? 'voto' : 'votos'} →
                   </div>
                 </a>
+              )
+            })}
+            {jogadoresFiltrados.length === 0 && (
+              <p style={{textAlign:'center', color:'#475569', fontSize:'0.85rem', padding:'24px 0'}}>Nenhum jogador.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Inativos — só no filtro "Todos" */}
+        {filtro === 'all' && inativos.length > 0 && (
+          <div>
+            <div className="section-title" style={{color:'#334155'}}>Inativos</div>
+            <div style={{display:'flex', flexDirection:'column', gap:6}}>
+              {inativos.map(player => (
+                <div key={player.id} style={{background:'rgba(15,23,42,0.5)', border:'1px solid rgba(255,255,255,0.04)', borderRadius:12, padding:'10px 14px', display:'flex', alignItems:'center', gap:10, opacity:0.45}}>
+                  {player.photo_url
+                    ? <img src={player.photo_url} alt={player.name} style={{width:32, height:32, borderRadius:'50%', objectFit:'cover', flexShrink:0}} />
+                    : <div style={{width:32, height:32, borderRadius:'50%', background:'rgba(255,255,255,0.04)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.75rem', color:'#334155', flexShrink:0}}>
+                        {player.name.charAt(0).toUpperCase()}
+                      </div>
+                  }
+                  <span style={{fontSize:'0.85rem', color:'#475569', textDecoration:'line-through', flex:1}}>{player.name}</span>
+                  <span style={{fontSize:'0.6rem', color:'#334155', background:'rgba(255,255,255,0.04)', padding:'2px 6px', borderRadius:6}}>Inativo</span>
+                </div>
               ))}
             </div>
           </div>
