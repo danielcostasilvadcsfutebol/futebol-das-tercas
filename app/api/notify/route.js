@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { sendPushNotification } from '@/app/lib/webpush'
+import { sendPushNotification } from '../../lib/webpush'
 
 export const dynamic = 'force-dynamic'
 
