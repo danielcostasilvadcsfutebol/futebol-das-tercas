@@ -9,13 +9,26 @@ export default async function Jogadores() {
     .select(`*, match_players(played_for, matches(id, white_wins, black_wins))`)
     .order('name', { ascending: true })
 
-  const { data: mvpVotes } = await supabase
+  // Buscar todos os votos MVP para calcular vitórias (quem ganhou cada jogo)
+  const { data: allMvpVotes } = await supabase
     .from('mvp_votes')
-    .select('voted_for_player_id')
+    .select('voted_for_player_id, match_id')
 
-  const mvpCount = {}
-  mvpVotes?.forEach(v => {
-    mvpCount[v.voted_for_player_id] = (mvpCount[v.voted_for_player_id] || 0) + 1
+  // Agrupar por jogo e encontrar o vencedor de cada jogo
+  const votesByMatch = {}
+  allMvpVotes?.forEach(v => {
+    if (!votesByMatch[v.match_id]) votesByMatch[v.match_id] = {}
+    votesByMatch[v.match_id][v.voted_for_player_id] = (votesByMatch[v.match_id][v.voted_for_player_id] || 0) + 1
+  })
+
+  // Contar vitórias MVP por jogador (um win por jogo, quem tiver mais votos)
+  const mvpWins = {}
+  Object.values(votesByMatch).forEach(matchVotes => {
+    const sorted = Object.entries(matchVotes).sort((a, b) => b[1] - a[1])
+    if (sorted.length > 0) {
+      const winnerId = sorted[0][0]
+      mvpWins[winnerId] = (mvpWins[winnerId] || 0) + 1
+    }
   })
 
   const calcStats = (player) => {
@@ -29,7 +42,7 @@ export default async function Jogadores() {
       return false
     }).length
     const pct = jogos > 0 ? Math.round((vitorias / jogos) * 100) : 0
-    const mvp = mvpCount[player.id] || 0
+    const mvp = mvpWins[player.id] || 0  // vitórias MVP, não total de votos
     return { jogos, vitorias, pct, mvp }
   }
 
@@ -78,6 +91,7 @@ export default async function Jogadores() {
           player: mvpPlayer,
           votos: contagem[mvpId],
           match: votosRecentes[0].matches,
+          matchId: matchIdMaisRecente,
         }
       }
     }
