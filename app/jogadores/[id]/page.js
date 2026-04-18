@@ -36,13 +36,48 @@ export default async function PerfilJogador({ params }) {
 
   if (!player) notFound()
 
-  const { data: mvpVotes } = await supabase
+  // Votos recebidos por este jogador (para saber em que jogos foi votado)
+  const { data: votesReceived } = await supabase
     .from('mvp_votes')
     .select('match_id, voted_at, matches(date, phase, match_number, series_id)')
     .eq('voted_for_player_id', params.id)
     .order('voted_at', { ascending: false })
 
-  // Estatísticas
+  // IDs dos jogos onde este jogador recebeu votos
+  const matchIdsWithVotes = [...new Set(votesReceived?.map(v => v.match_id) || [])]
+
+  // Para cada um desses jogos, buscar todos os votos para determinar o vencedor
+  let mvpWins = []
+  if (matchIdsWithVotes.length > 0) {
+    const { data: allVotesInMatches } = await supabase
+      .from('mvp_votes')
+      .select('match_id, voted_for_player_id')
+      .in('match_id', matchIdsWithVotes)
+
+    // Agrupar por jogo e verificar se este jogador ganhou
+    const votesByMatch = {}
+    allVotesInMatches?.forEach(v => {
+      if (!votesByMatch[v.match_id]) votesByMatch[v.match_id] = {}
+      votesByMatch[v.match_id][v.voted_for_player_id] = (votesByMatch[v.match_id][v.voted_for_player_id] || 0) + 1
+    })
+
+    mvpWins = Object.entries(votesByMatch)
+      .filter(([, matchVotes]) => {
+        const sorted = Object.entries(matchVotes).sort((a, b) => b[1] - a[1])
+        return sorted[0]?.[0] === params.id
+      })
+      .map(([matchId, matchVotes]) => {
+        const matchInfo = votesReceived?.find(v => String(v.match_id) === matchId)
+        return {
+          matchId,
+          match: matchInfo?.matches,
+          votos: matchVotes[params.id] || 0,
+        }
+      })
+      .sort((a, b) => new Date(b.match?.date || 0) - new Date(a.match?.date || 0))
+  }
+
+  // Estatísticas gerais
   const comResultado = player.match_players?.filter(
     mp => mp.matches?.white_wins !== null && mp.matches?.black_wins !== null
   ) || []
@@ -60,7 +95,7 @@ export default async function PerfilJogador({ params }) {
   }).length
   const empates = jogos - vitorias - derrotas
   const pct = jogos > 0 ? Math.round((vitorias / jogos) * 100) : 0
-  const mvpTotal = mvpVotes?.length || 0
+  const mvpTotal = mvpWins.length  // vitórias MVP, não total de votos
 
   const jogosLiga = comResultado.filter(mp => mp.matches.phase === 'league')
   const jogosTaca = comResultado.filter(mp => mp.matches.phase === 'cup')
@@ -78,6 +113,11 @@ export default async function PerfilJogador({ params }) {
 
   const idade = calcIdade(player.birth_date)
   const isWhite = player.team === 'white'
+
+  const labelJornada = (m) => {
+    if (!m?.match_number) return null
+    return m.phase === 'cup' ? `Jogo ${m.match_number}` : `Jorn. ${m.match_number}`
+  }
 
   return (
     <>
@@ -145,8 +185,17 @@ export default async function PerfilJogador({ params }) {
         }
         .back-btn:hover { color: #94a3b8; }
 
-        .pct-ring-bg { fill: none; stroke: rgba(255,255,255,0.07); }
-        .pct-ring-fill { fill: none; stroke-linecap: round; transition: stroke-dashoffset 0.5s ease; }
+        .mvp-win-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 8px 0;
+          border-bottom: 1px solid rgba(255,255,255,0.04);
+          text-decoration: none;
+          transition: opacity 0.15s;
+        }
+        .mvp-win-row:last-child { border-bottom: none; }
+        .mvp-win-row:hover { opacity: 0.8; }
       `}</style>
 
       <div className="perfil-page pb-12">
@@ -164,7 +213,6 @@ export default async function PerfilJogador({ params }) {
           position: 'relative',
           overflow: 'hidden',
         }}>
-          {/* Decoração de fundo */}
           <div style={{
             position: 'absolute', top: -30, right: -30,
             width: 140, height: 140, borderRadius: '50%',
@@ -173,7 +221,6 @@ export default async function PerfilJogador({ params }) {
           }} />
 
           <div style={{display:'flex', alignItems:'center', gap:16}}>
-            {/* Foto */}
             {player.photo_url
               ? <img src={player.photo_url} alt={player.name} style={{
                   width: 80, height: 80, borderRadius: '50%', objectFit: 'cover', flexShrink: 0,
@@ -228,9 +275,7 @@ export default async function PerfilJogador({ params }) {
             { val: derrotas, lbl: 'Derrotas' },
             { val: `${pct}%`, lbl: 'Taxa V.' },
           ].map(s => (
-            <div key={s.lbl} className="stat-block" style={{
-              border: '1px solid rgba(255,255,255,0.06)',
-            }}>
+            <div key={s.lbl} className="stat-block" style={{border:'1px solid rgba(255,255,255,0.06)'}}>
               <div className="val" style={{fontSize: s.lbl === 'Taxa V.' ? '1.6rem' : '2.2rem',
                 color: s.lbl === 'Taxa V.' ? (pct >= 60 ? '#22c55e' : pct >= 40 ? '#f59e0b' : jogos === 0 ? 'white' : '#ef4444') : 'white'
               }}>{s.val}</div>
@@ -284,7 +329,7 @@ export default async function PerfilJogador({ params }) {
                     <div style={{flex:1}}>
                       <div style={{fontSize:'0.8rem', color:'#cbd5e1', fontWeight:500}}>
                         {m.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'} · Série {m.series?.id}
-                        {m.match_number ? ` · ${m.phase === 'cup' ? `Jogo ${m.match_number}` : `Jorn. ${m.match_number}`}` : ''}
+                        {m.match_number ? ` · ${labelJornada(m)}` : ''}
                       </div>
                       <div style={{fontSize:'0.7rem', color:'#475569'}}>
                         {new Date(m.date).toLocaleDateString('pt-PT', { day:'numeric', month:'short', year:'numeric' })}
@@ -307,40 +352,30 @@ export default async function PerfilJogador({ params }) {
           </div>
         )}
 
-        {/* MVP History */}
+        {/* MVP Wins — jogos em que ganhou o MVP */}
         {mvpTotal > 0 && (
           <div className="section-card" style={{marginBottom:16}}>
-            <div className="section-title">⭐ Prémios MVP</div>
-            <div style={{display:'flex', flexDirection:'column', gap:8}}>
-              {/* Agrupa votos por jogo */}
-              {(() => {
-                const porJogo = {}
-                mvpVotes?.forEach(v => {
-                  if (!porJogo[v.match_id]) porJogo[v.match_id] = { count: 0, match: v.matches }
-                  porJogo[v.match_id].count++
-                })
-                return Object.entries(porJogo)
-                  .sort((a, b) => new Date(b[1].match?.date || 0) - new Date(a[1].match?.date || 0))
-                  .map(([matchId, info]) => (
-                    <div key={matchId} style={{display:'flex', alignItems:'center', gap:10}}>
-                      <div style={{width:28, height:28, borderRadius:8, background:'rgba(251,191,36,0.12)', border:'1px solid rgba(251,191,36,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.85rem', flexShrink:0}}>
-                        ⭐
-                      </div>
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:'0.8rem', color:'#cbd5e1', fontWeight:500}}>
-                          {info.match?.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'} · Série {info.match?.series_id}
-                          {info.match?.match_number ? ` · ${info.match.phase === 'cup' ? `Jogo ${info.match.match_number}` : `Jorn. ${info.match.match_number}`}` : ''}
-                        </div>
-                        <div style={{fontSize:'0.7rem', color:'#475569'}}>
-                          {info.match?.date ? new Date(info.match.date).toLocaleDateString('pt-PT', { day:'numeric', month:'short', year:'numeric' }) : ''}
-                        </div>
-                      </div>
-                      <div style={{fontSize:'0.78rem', fontWeight:700, color:'#f59e0b', background:'rgba(251,191,36,0.08)', padding:'3px 8px', borderRadius:8, flexShrink:0}}>
-                        {info.count} {info.count === 1 ? 'voto' : 'votos'}
-                      </div>
+            <div className="section-title">⭐ Vitórias MVP ({mvpTotal})</div>
+            <div>
+              {mvpWins.map((win) => (
+                <a key={win.matchId} href={`/mvp/${win.matchId}`} className="mvp-win-row">
+                  <div style={{width:32, height:32, borderRadius:8, background:'rgba(251,191,36,0.12)', border:'1px solid rgba(251,191,36,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.85rem', flexShrink:0}}>
+                    ⭐
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:'0.8rem', color:'#cbd5e1', fontWeight:500}}>
+                      {win.match?.phase === 'cup' ? '🏆 Taça' : '👑 Camp.'} · Série {win.match?.series_id}
+                      {win.match?.match_number ? ` · ${labelJornada(win.match)}` : ''}
                     </div>
-                  ))
-              })()}
+                    <div style={{fontSize:'0.7rem', color:'#475569'}}>
+                      {win.match?.date ? new Date(win.match.date).toLocaleDateString('pt-PT', { day:'numeric', month:'short', year:'numeric' }) : ''}
+                    </div>
+                  </div>
+                  <div style={{fontSize:'0.75rem', fontWeight:700, color:'#f59e0b', background:'rgba(251,191,36,0.08)', padding:'3px 8px', borderRadius:8, flexShrink:0}}>
+                    {win.votos} {win.votos === 1 ? 'voto' : 'votos'} →
+                  </div>
+                </a>
+              ))}
             </div>
           </div>
         )}
