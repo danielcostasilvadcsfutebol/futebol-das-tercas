@@ -23,6 +23,9 @@ export default function Admin() {
   const [notif, setNotif] = useState({ title: '', body: '', url: '/' })
   const [notifEnviando, setNotifEnviando] = useState(false)
   const [notifResultado, setNotifResultado] = useState(null)
+  const [subscritores, setSubscritores] = useState([])
+  const [subscritoresLoaded, setSubscritoresLoaded] = useState(false)
+  const [selectedPlayers, setSelectedPlayers] = useState([])
 
   const [novoJogo, setNovoJogo] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -309,6 +312,21 @@ export default function Admin() {
   }
 
   // ── Enviar notificação push ──
+  const carregarSubscritores = async () => {
+    const { data } = await supabase
+      .from('push_subscriptions')
+      .select('player_id, players(id, name, team)')
+      .not('player_id', 'is', null)
+    const unicos = {}
+    data?.forEach(row => {
+      if (row.players && !unicos[row.players.id]) {
+        unicos[row.players.id] = row.players
+      }
+    })
+    setSubscritores(Object.values(unicos))
+    setSubscritoresLoaded(true)
+  }
+
   const enviarNotificacao = async () => {
     if (!notif.title.trim() || !notif.body.trim()) {
       setNotifResultado({ ok: false, msg: 'Preenche o título e a mensagem.' })
@@ -323,7 +341,12 @@ export default function Admin() {
           'Content-Type': 'application/json',
           'x-admin-key': process.env.NEXT_PUBLIC_ADMIN_NOTIFY_KEY || '',
         },
-        body: JSON.stringify({ title: notif.title, body: notif.body, url: notif.url }),
+        body: JSON.stringify({
+          title: notif.title,
+          body: notif.body,
+          url: notif.url,
+          player_ids: selectedPlayers.length > 0 ? selectedPlayers : undefined,
+        }),
       })
       const data = await res.json()
       if (res.ok) {
@@ -398,60 +421,123 @@ export default function Admin() {
 
       {/* ── Tab: Notificações ── */}
       {tab === 'notificacoes' && (
-        <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-4">
-          <h2 className="text-lg font-bold text-white">🔔 Enviar Notificação</h2>
-          <p className="text-slate-400 text-xs">Envia uma notificação push para todos os jogadores que instalaram a app.</p>
-
-          <div>
-            <label className="text-slate-400 text-xs mb-1 block">Título</label>
-            <input
-              type="text"
-              placeholder="ex: ⚽ Jogo amanhã!"
-              value={notif.title}
-              onChange={e => setNotif(p => ({ ...p, title: e.target.value }))}
-              className="w-full bg-slate-700 text-white rounded-xl px-3 py-2.5 border border-slate-600 text-sm focus:outline-none focus:border-green-500"
-            />
-          </div>
-
-          <div>
-            <label className="text-slate-400 text-xs mb-1 block">Mensagem</label>
-            <textarea
-              placeholder="ex: Não te esqueças, às 21h no campo habitual!"
-              value={notif.body}
-              onChange={e => setNotif(p => ({ ...p, body: e.target.value }))}
-              rows={3}
-              className="w-full bg-slate-700 text-white rounded-xl px-3 py-2.5 border border-slate-600 text-sm focus:outline-none focus:border-green-500 resize-none"
-            />
-          </div>
-
-          <div>
-            <label className="text-slate-400 text-xs mb-1 block">Página de destino <span className="text-slate-500">(ao clicar na notificação)</span></label>
-            <select
-              value={notif.url}
-              onChange={e => setNotif(p => ({ ...p, url: e.target.value }))}
-              className="w-full bg-slate-700 text-white rounded-xl px-3 py-2.5 border border-slate-600 text-sm"
-            >
-              <option value="/">🏠 Início</option>
-              <option value="/jogos">📅 Jogos</option>
-              <option value="/jogadores">👥 Jogadores</option>
-              <option value="/titulos">🏆 Títulos</option>
-              <option value="/votar">⭐ Votar MVP</option>
-            </select>
-          </div>
-
-          {notifResultado && (
-            <div className={`rounded-xl p-3 text-center text-sm font-medium ${notifResultado.ok ? 'bg-green-500/20 border border-green-500 text-green-400' : 'bg-red-500/20 border border-red-500 text-red-400'}`}>
-              {notifResultado.msg}
+        <div className="space-y-4">
+          {/* Seleção de destinatários */}
+          <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-white">👥 Destinatários</h2>
+              {!subscritoresLoaded && (
+                <button
+                  onClick={carregarSubscritores}
+                  className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg transition"
+                >
+                  Carregar
+                </button>
+              )}
+              {subscritoresLoaded && subscritores.length > 0 && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSelectedPlayers([])}
+                    className={`text-xs px-2.5 py-1 rounded-lg transition font-medium ${selectedPlayers.length === 0 ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-400 hover:text-white'}`}
+                  >
+                    Todos
+                  </button>
+                  <button
+                    onClick={() => setSelectedPlayers(subscritores.map(p => p.id))}
+                    className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-white px-2.5 py-1 rounded-lg transition"
+                  >
+                    Nenhum
+                  </button>
+                </div>
+              )}
             </div>
-          )}
+            {!subscritoresLoaded && (
+              <p className="text-slate-500 text-xs">Carrega para ver quem tem notificações ativas.</p>
+            )}
+            {subscritoresLoaded && subscritores.length === 0 && (
+              <p className="text-slate-500 text-xs">Nenhum jogador subscrito ainda.</p>
+            )}
+            {subscritoresLoaded && subscritores.length > 0 && (
+              <>
+                <p className="text-slate-400 text-xs">
+                  {selectedPlayers.length === 0
+                    ? `Enviar para todos (${subscritores.length} jogadores)`
+                    : `${selectedPlayers.length} de ${subscritores.length} selecionados`}
+                </p>
+                <div className="space-y-2">
+                  {subscritores.map(p => (
+                    <label key={p.id} className="flex items-center gap-3 cursor-pointer bg-slate-700 rounded-xl px-3 py-2.5">
+                      <input
+                        type="checkbox"
+                        checked={selectedPlayers.includes(p.id)}
+                        onChange={() => setSelectedPlayers(prev =>
+                          prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
+                        )}
+                        className="rounded accent-green-500 w-4 h-4 shrink-0"
+                      />
+                      <span className="text-sm text-white font-medium">{p.name}</span>
+                      <span className="text-xs text-slate-500">{p.team === 'white' ? '⚪ Brancos' : '⚫ Pretos'}</span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
 
-          <button
-            onClick={enviarNotificacao}
-            disabled={notifEnviando}
-            className="w-full bg-green-600 hover:bg-green-500 active:bg-green-700 disabled:opacity-50 text-white rounded-xl py-3 font-bold transition"
-          >
-            {notifEnviando ? 'A enviar...' : '🔔 Enviar Notificação'}
-          </button>
+          {/* Formulário */}
+          <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-4">
+            <h2 className="text-lg font-bold text-white">🔔 Enviar Notificação</h2>
+            <div>
+              <label className="text-slate-400 text-xs mb-1 block">Título</label>
+              <input
+                type="text"
+                placeholder="ex: ⚽ Jogo amanhã!"
+                value={notif.title}
+                onChange={e => setNotif(p => ({ ...p, title: e.target.value }))}
+                className="w-full bg-slate-700 text-white rounded-xl px-3 py-2.5 border border-slate-600 text-sm focus:outline-none focus:border-green-500"
+              />
+            </div>
+            <div>
+              <label className="text-slate-400 text-xs mb-1 block">Mensagem</label>
+              <textarea
+                placeholder="ex: Não te esqueças, às 21h no campo habitual!"
+                value={notif.body}
+                onChange={e => setNotif(p => ({ ...p, body: e.target.value }))}
+                rows={3}
+                className="w-full bg-slate-700 text-white rounded-xl px-3 py-2.5 border border-slate-600 text-sm focus:outline-none focus:border-green-500 resize-none"
+              />
+            </div>
+            <div>
+              <label className="text-slate-400 text-xs mb-1 block">Página de destino</label>
+              <select
+                value={notif.url}
+                onChange={e => setNotif(p => ({ ...p, url: e.target.value }))}
+                className="w-full bg-slate-700 text-white rounded-xl px-3 py-2.5 border border-slate-600 text-sm"
+              >
+                <option value="/">🏠 Início</option>
+                <option value="/jogos">📅 Jogos</option>
+                <option value="/jogadores">👥 Jogadores</option>
+                <option value="/titulos">🏆 Títulos</option>
+                <option value="/votar">⭐ Votar MVP</option>
+              </select>
+            </div>
+            {notifResultado && (
+              <div className={`rounded-xl p-3 text-center text-sm font-medium ${notifResultado.ok ? 'bg-green-500/20 border border-green-500 text-green-400' : 'bg-red-500/20 border border-red-500 text-red-400'}`}>
+                {notifResultado.msg}
+              </div>
+            )}
+            <button
+              onClick={enviarNotificacao}
+              disabled={notifEnviando}
+              className="w-full bg-green-600 hover:bg-green-500 active:bg-green-700 disabled:opacity-50 text-white rounded-xl py-3 font-bold transition"
+            >
+              {notifEnviando
+                ? 'A enviar...'
+                : selectedPlayers.length > 0
+                  ? `🔔 Enviar para ${selectedPlayers.length} jogador${selectedPlayers.length > 1 ? 'es' : ''}`
+                  : '🔔 Enviar para todos'}
+            </button>
+          </div>
         </div>
       )}
 
