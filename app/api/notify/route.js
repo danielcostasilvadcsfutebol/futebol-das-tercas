@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { sendPushNotification } from '@/app/lib/webpush'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,15 +10,6 @@ export async function POST(request) {
     process.env.SUPABASE_SERVICE_KEY
   )
 
-  // ← import dinâmico: só carrega quando a função é chamada, não no build
-  const webpush = (await import('web-push')).default
-
-  webpush.setVapidDetails(
-    'mailto:' + process.env.VAPID_EMAIL,
-    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
-  )
-
   try {
     const authHeader = request.headers.get('x-admin-key')
     if (authHeader !== process.env.ADMIN_NOTIFY_KEY) {
@@ -25,7 +17,6 @@ export async function POST(request) {
     }
 
     const { title, body, url } = await request.json()
-
     const { data: rows, error } = await supabase
       .from('push_subscriptions')
       .select('subscription')
@@ -35,7 +26,13 @@ export async function POST(request) {
     const payload = JSON.stringify({ title, body, url: url || '/' })
 
     const results = await Promise.allSettled(
-      rows.map((row) => webpush.sendNotification(row.subscription, payload))
+      rows.map((row) =>
+        sendPushNotification(row.subscription, payload, {
+          publicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+          privateKey: process.env.VAPID_PRIVATE_KEY,
+          email: process.env.VAPID_EMAIL,
+        })
+      )
     )
 
     const enviadas = results.filter((r) => r.status === 'fulfilled').length
@@ -43,7 +40,7 @@ export async function POST(request) {
 
     return NextResponse.json({ enviadas, falhadas })
   } catch (err) {
-    console.error('Erro ao enviar notificação:', err)
+    console.error('Erro:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
