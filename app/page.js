@@ -20,11 +20,25 @@ export default async function Home() {
   const totalTacaBrancos = historico?.filter(s => s.cup_winner === 'white').length || 0
   const totalTacaPretos  = historico?.filter(s => s.cup_winner === 'black').length || 0
 
-  const { data: matchVotacao } = await supabase
+  const { data: matchVotacaoRaw } = await supabase
     .from('matches')
     .select('id, voting_open, voting_closes_at, date, phase, match_number, series_id')
     .eq('voting_open', true)
     .maybeSingle()
+
+  // Fechar automaticamente se o prazo já expirou
+  const votacaoExpirada =
+    matchVotacaoRaw?.voting_closes_at &&
+    new Date(matchVotacaoRaw.voting_closes_at) < new Date()
+
+  if (votacaoExpirada) {
+    await supabase
+      .from('matches')
+      .update({ voting_open: false })
+      .eq('id', matchVotacaoRaw.id)
+  }
+
+  const matchVotacao = votacaoExpirada ? null : matchVotacaoRaw
 
   const horasVotacao = matchVotacao?.voting_closes_at
     ? Math.max(0, Math.round((new Date(matchVotacao.voting_closes_at) - new Date()) / 3600000))
