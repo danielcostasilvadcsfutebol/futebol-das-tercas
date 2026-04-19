@@ -1,48 +1,73 @@
 import { supabase } from '../lib/supabase'
-import VotarClient from './VotarClient'
+import JogosClient from './JogosClient'
 
 export const revalidate = 0
 
-export default async function VotarPage() {
-  // Buscar o jogo com votação aberta
-  const { data: matchRaw } = await supabase
+export default async function Jogos() {
+  const { data: matches } = await supabase
     .from('matches')
-    .select('*, series(id)')
-    .eq('voting_open', true)
+    .select(`*, series(id, status), match_players(played_for, players(name, team))`)
     .order('date', { ascending: false })
-    .limit(1)
+
+  const { data: matchVotacaoRaw } = await supabase
+    .from('matches')
+    .select('id, voting_open, voting_closes_at, phase, match_number, series_id')
+    .eq('voting_open', true)
     .maybeSingle()
 
   // Fechar automaticamente se o prazo já expirou
   const votacaoExpirada =
-    matchRaw?.voting_closes_at &&
-    new Date(matchRaw.voting_closes_at) < new Date()
+    matchVotacaoRaw?.voting_closes_at &&
+    new Date(matchVotacaoRaw.voting_closes_at) < new Date()
 
   if (votacaoExpirada) {
     await supabase
       .from('matches')
       .update({ voting_open: false })
-      .eq('id', matchRaw.id)
+      .eq('id', matchVotacaoRaw.id)
   }
 
-  const match = votacaoExpirada ? null : matchRaw
+  const matchVotacao = votacaoExpirada ? null : matchVotacaoRaw
 
-  let jogadores = []
-  if (match) {
-    const { data: matchPlayers } = await supabase
-      .from('match_players')
-      .select('played_for, players(id, name, team, photo_url)')
-      .eq('match_id', match.id)
+  const horasVotacao = matchVotacao?.voting_closes_at
+    ? Math.max(0, Math.round((new Date(matchVotacao.voting_closes_at) - new Date()) / 3600000))
+    : null
 
-    jogadores = matchPlayers
-      ?.map(mp => ({ ...mp.players, played_for: mp.played_for }))
-      .filter(Boolean)
-      .sort((a, b) => {
-        if (a.team === 'white' && b.team !== 'white') return -1
-        if (a.team !== 'white' && b.team === 'white') return 1
-        return a.name.localeCompare(b.name)
-      }) || []
+  // Buscar todos os votos MVP para calcular o vencedor por jogo
+  const { data: todosVotos } = await supabase
+    .from('mvp_votes')
+    .select('match_id, voted_for_player_id, players!mvp_votes_voted_for_player_id_fkey(id, name, photo_url, team)')
+
+  // Calcular MVP por jogo: { [match_id]: { player, count } }
+  const mvpPorJogo = {}
+  if (todosVotos?.length) {
+    const contagemPorJogo = {}
+    todosVotos.forEach(v => {
+      if (!contagemPorJogo[v.match_id]) contagemPorJogo[v.match_id] = {}
+      const pid = v.voted_for_player_id
+      if (!contagemPorJogo[v.match_id][pid]) {
+        contagemPorJogo[v.match_id][pid] = { player: v.players, count: 0 }
+      }
+      contagemPorJogo[v.match_id][pid].count++
+    })
+    Object.entries(contagemPorJogo).forEach(([matchId, candidatos]) => {
+      const vencedor = Object.values(candidatos).sort((a, b) => b.count - a.count)[0]
+      mvpPorJogo[matchId] = vencedor
+    })
   }
 
-  return <VotarClient match={match} jogadores={jogadores} />
+  const agendados = matches?.filter(m => m.white_wins === null && m.black_wins === null)
+    .sort((a, b) => new Date(a.date) - new Date(b.date)) ?? []
+  const realizados = matches?.filter(m => m.white_wins !== null && m.black_wins !== null)
+    .sort((a, b) => new Date(b.date) - new Date(a.date)) ?? []
+
+  return (
+    <JogosClient
+      agendados={agendados}
+      realizados={realizados}
+      matchVotacao={matchVotacao}
+      horasVotacao={horasVotacao}
+      mvpPorJogo={mvpPorJogo}
+    />
+  )
 }
