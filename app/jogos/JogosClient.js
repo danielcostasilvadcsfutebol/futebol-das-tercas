@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 
-export default function JogosClient({ agendados, realizados, matchVotacao, horasVotacao }) {
+export default function JogosClient({ agendados, realizados, matchVotacao, horasVotacao, mvpPorJogo = {} }) {
   const [aberto, setAberto] = useState(null)
 
   const toggle = (id) => setAberto(aberto === id ? null : id)
@@ -84,6 +84,41 @@ export default function JogosClient({ agendados, realizados, matchVotacao, horas
 
         .match-meta { font-size: 0.65rem; color: #94a3b8; margin-top: 2px; }
         .match-serie { font-size: 0.62rem; color: #94a3b8; }
+
+        .mvp-inline {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          background: linear-gradient(135deg, rgba(28,25,23,0.95), rgba(15,10,5,0.98));
+          border: 1px solid rgba(251,191,36,0.2);
+          border-radius: 12px;
+          padding: 10px 12px;
+          margin-top: 12px;
+          text-decoration: none;
+        }
+        .mvp-inline:active { opacity: 0.85; }
+        .mvp-mini-avatar {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          object-fit: cover;
+          border: 2px solid rgba(251,191,36,0.4);
+          flex-shrink: 0;
+        }
+        .mvp-mini-placeholder {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: rgba(251,191,36,0.08);
+          border: 2px solid rgba(251,191,36,0.25);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: 'Bebas Neue', sans-serif;
+          font-size: 1rem;
+          color: #f59e0b;
+          flex-shrink: 0;
+        }
       `}</style>
 
       <div className="jogos-page space-y-5 pb-10">
@@ -230,6 +265,31 @@ export default function JogosClient({ agendados, realizados, matchVotacao, horas
                             <div><div className="players-label">⚫ Pretos</div><div className="players-names">{pretos?.join(', ')}</div></div>
                           </div>
                         )}
+
+                        {/* MVP do jogo */}
+                        {mvpPorJogo[match.id] && (() => {
+                          const mvp = mvpPorJogo[match.id]
+                          return (
+                            <a href={`/mvp/${match.id}`} className="mvp-inline">
+                              {mvp.player?.photo_url
+                                ? <img src={mvp.player.photo_url} alt={mvp.player.name} className="mvp-mini-avatar" />
+                                : <div className="mvp-mini-placeholder">{mvp.player?.name?.charAt(0).toUpperCase()}</div>
+                              }
+                              <div style={{flex:1, minWidth:0}}>
+                                <div style={{fontSize:'0.6rem', color:'#f59e0b', letterSpacing:'0.1em', textTransform:'uppercase', fontWeight:700, marginBottom:1}}>
+                                  ⭐ MVP
+                                </div>
+                                <div style={{fontSize:'0.9rem', fontWeight:700, color:'white', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                                  {mvp.player?.name}
+                                </div>
+                              </div>
+                              <div style={{textAlign:'right', flexShrink:0}}>
+                                <div style={{fontFamily:"'Bebas Neue',sans-serif", fontSize:'1.6rem', color:'#f59e0b', lineHeight:1}}>{mvp.count}</div>
+                                <div style={{fontSize:'0.55rem', color:'#78716c', textTransform:'uppercase', letterSpacing:'0.06em'}}>votos</div>
+                              </div>
+                            </a>
+                          )
+                        })()}
                       </div>
                     )}
                   </div>
