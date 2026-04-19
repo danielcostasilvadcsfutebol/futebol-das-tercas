@@ -9,11 +9,25 @@ export default async function Jogos() {
     .select(`*, series(id, status), match_players(played_for, players(name, team))`)
     .order('date', { ascending: false })
 
-  const { data: matchVotacao } = await supabase
+  const { data: matchVotacaoRaw } = await supabase
     .from('matches')
     .select('id, voting_open, voting_closes_at, phase, match_number, series_id')
     .eq('voting_open', true)
     .maybeSingle()
+
+  // Fechar automaticamente se o prazo já expirou
+  const votacaoExpirada =
+    matchVotacaoRaw?.voting_closes_at &&
+    new Date(matchVotacaoRaw.voting_closes_at) < new Date()
+
+  if (votacaoExpirada) {
+    await supabase
+      .from('matches')
+      .update({ voting_open: false })
+      .eq('id', matchVotacaoRaw.id)
+  }
+
+  const matchVotacao = votacaoExpirada ? null : matchVotacaoRaw
 
   const horasVotacao = matchVotacao?.voting_closes_at
     ? Math.max(0, Math.round((new Date(matchVotacao.voting_closes_at) - new Date()) / 3600000))
