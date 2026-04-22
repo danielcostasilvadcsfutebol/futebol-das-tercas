@@ -55,15 +55,22 @@ export default async function MvpDetalhe({ params }) {
 
   if (!votes || votes.length === 0) notFound()
 
-  // Contagem de votos por candidato
   const countByCandidato = {}
   votes.forEach(v => {
     const cid = v.voted_for_player_id
-    if (!countByCandidato[cid]) countByCandidato[cid] = { player: v.candidate, count: 0 }
+    if (!countByCandidato[cid]) {
+      countByCandidato[cid] = { player: v.candidate, count: 0, firstVotedAt: v.voted_at }
+    }
     countByCandidato[cid].count++
+    // Guardar o voto mais antigo para desempate
+    if (v.voted_at < countByCandidato[cid].firstVotedAt) {
+      countByCandidato[cid].firstVotedAt = v.voted_at
+    }
   })
 
-  const candidatosOrdenados = Object.values(countByCandidato).sort((a, b) => b.count - a.count)
+  const candidatosOrdenados = Object.values(countByCandidato).sort((a, b) =>
+    b.count - a.count || new Date(a.firstVotedAt) - new Date(b.firstVotedAt)
+  )
   const mvpPlayer = candidatosOrdenados[0]
   const outrosCandidatos = candidatosOrdenados.slice(1)
   const totalVotos = votes.length
