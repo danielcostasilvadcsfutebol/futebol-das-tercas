@@ -39,6 +39,7 @@ export default async function Jogos() {
     .select('match_id, voted_for_player_id, players!mvp_votes_voted_for_player_id_fkey(id, name, photo_url, team)')
 
   // Calcular MVP por jogo: { [match_id]: { player, count } }
+  // Excluir o jogo com votação ainda aberta — resultados só visíveis após encerramento
   const mvpPorJogo = {}
   if (todosVotos?.length) {
     const contagemPorJogo = {}
@@ -51,6 +52,8 @@ export default async function Jogos() {
       contagemPorJogo[v.match_id][pid].count++
     })
     Object.entries(contagemPorJogo).forEach(([matchId, candidatos]) => {
+      // Não mostrar resultado enquanto votação está aberta
+      if (matchVotacao && String(matchVotacao.id) === String(matchId)) return
       const vencedor = Object.values(candidatos).sort((a, b) => b.count - a.count)[0]
       mvpPorJogo[matchId] = vencedor
     })
