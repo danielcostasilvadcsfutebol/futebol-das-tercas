@@ -36,7 +36,7 @@ export default async function Jogos() {
   // Buscar todos os votos MVP para calcular o vencedor por jogo
   const { data: todosVotos } = await supabase
     .from('mvp_votes')
-    .select('match_id, voted_for_player_id, players!mvp_votes_voted_for_player_id_fkey(id, name, photo_url, team)')
+    .select('match_id, voted_for_player_id, voted_at, players!mvp_votes_voted_for_player_id_fkey(id, name, photo_url, team)')
 
   // Calcular MVP por jogo: { [match_id]: { player, count } }
   // Excluir o jogo com votação ainda aberta — resultados só visíveis após encerramento
@@ -50,11 +50,18 @@ export default async function Jogos() {
         contagemPorJogo[v.match_id][pid] = { player: v.players, count: 0 }
       }
       contagemPorJogo[v.match_id][pid].count++
+      // Guardar o voto mais antigo para desempate
+      const vAtual = contagemPorJogo[v.match_id][pid].firstVotedAt
+      if (!vAtual || v.voted_at < vAtual) {
+        contagemPorJogo[v.match_id][pid].firstVotedAt = v.voted_at
+      }
     })
     Object.entries(contagemPorJogo).forEach(([matchId, candidatos]) => {
       // Não mostrar resultado enquanto votação está aberta
       if (matchVotacao && String(matchVotacao.id) === String(matchId)) return
-      const vencedor = Object.values(candidatos).sort((a, b) => b.count - a.count)[0]
+      const vencedor = Object.values(candidatos).sort((a, b) =>
+        b.count - a.count || new Date(a.firstVotedAt) - new Date(b.firstVotedAt)
+      )[0]
       mvpPorJogo[matchId] = vencedor
     })
   }
