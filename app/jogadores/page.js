@@ -12,19 +12,27 @@ export default async function Jogadores() {
   // Buscar todos os votos MVP para calcular vitórias (quem ganhou cada jogo)
   const { data: allMvpVotes } = await supabase
     .from('mvp_votes')
-    .select('voted_for_player_id, match_id')
+    .select('voted_for_player_id, match_id, voted_at')
+    .order('voted_at', { ascending: true })
 
   // Agrupar por jogo e encontrar o vencedor de cada jogo
   const votesByMatch = {}
   allMvpVotes?.forEach(v => {
+    const pid = v.voted_for_player_id
     if (!votesByMatch[v.match_id]) votesByMatch[v.match_id] = {}
-    votesByMatch[v.match_id][v.voted_for_player_id] = (votesByMatch[v.match_id][v.voted_for_player_id] || 0) + 1
+    if (!votesByMatch[v.match_id][pid]) {
+      votesByMatch[v.match_id][pid] = { count: 0, firstVotedAt: v.voted_at }
+    }
+    votesByMatch[v.match_id][pid].count++
+    // firstVotedAt já é o mais antigo pois a query está ordenada ASC
   })
 
-  // Contar vitórias MVP por jogador (um win por jogo, quem tiver mais votos)
+  // Contar vitórias MVP por jogador; desempate pelo primeiro voto mais antigo
   const mvpWins = {}
   Object.values(votesByMatch).forEach(matchVotes => {
-    const sorted = Object.entries(matchVotes).sort((a, b) => b[1] - a[1])
+    const sorted = Object.entries(matchVotes).sort(([, a], [, b]) =>
+      b.count - a.count || new Date(a.firstVotedAt) - new Date(b.firstVotedAt)
+    )
     if (sorted.length > 0) {
       const winnerId = sorted[0][0]
       mvpWins[winnerId] = (mvpWins[winnerId] || 0) + 1
@@ -70,17 +78,24 @@ export default async function Jogadores() {
   if (!votacaoAberta) {
     const { data: votosRecentes } = await supabase
       .from('mvp_votes')
-      .select('voted_for_player_id, match_id, matches(date, phase, match_number, series_id)')
-      .order('voted_at', { ascending: false })
+      .select('voted_for_player_id, match_id, voted_at, matches(date, phase, match_number, series_id)')
+      .order('voted_at', { ascending: true })
 
     if (votosRecentes?.length > 0) {
-      const matchIdMaisRecente = votosRecentes[0].match_id
+      // Último jogo (ordem ASC, por isso o último elemento tem o match mais recente)
+      const matchIdMaisRecente = votosRecentes[votosRecentes.length - 1].match_id
       const votosDessaPartida = votosRecentes.filter(v => v.match_id === matchIdMaisRecente)
       const contagem = {}
       votosDessaPartida.forEach(v => {
-        contagem[v.voted_for_player_id] = (contagem[v.voted_for_player_id] || 0) + 1
+        const pid = v.voted_for_player_id
+        if (!contagem[pid]) contagem[pid] = { count: 0, firstVotedAt: v.voted_at }
+        contagem[pid].count++
+        // firstVotedAt já é o mais antigo pois a query está ordenada ASC
       })
-      const mvpId = Object.entries(contagem).sort((a, b) => b[1] - a[1])[0]?.[0]
+      // Desempate: mais votos primeiro; em empate, primeiro voto mais antigo vence
+      const mvpId = Object.entries(contagem).sort(([, a], [, b]) =>
+        b.count - a.count || new Date(a.firstVotedAt) - new Date(b.firstVotedAt)
+      )[0]?.[0]
       if (mvpId) {
         const { data: mvpPlayer } = await supabase
           .from('players')
@@ -89,8 +104,8 @@ export default async function Jogadores() {
           .single()
         ultimoMvp = {
           player: mvpPlayer,
-          votos: contagem[mvpId],
-          match: votosRecentes[0].matches,
+          votos: contagem[mvpId].count,
+          match: votosRecentes.find(v => v.match_id === matchIdMaisRecente)?.matches,
           matchId: matchIdMaisRecente,
         }
       }
