@@ -39,19 +39,23 @@ export default async function PerfilJogador({ params }) {
   // Votos recebidos
   const { data: votesReceived } = await supabase
     .from('mvp_votes')
-    .select('match_id, voted_at, matches(date, phase, match_number, series_id)')
+    .select('match_id, voted_at, matches(date, phase, match_number, series_id, voting_open)')
     .eq('voted_for_player_id', params.id)
     .order('voted_at', { ascending: false })
 
   // Votos dados
   const { data: votesGiven } = await supabase
     .from('mvp_votes')
-    .select(`voted_for_player_id, match_id, voted_at, candidate:players!mvp_votes_voted_for_player_id_fkey(id, name, photo_url, team)`)
+    .select(`voted_for_player_id, match_id, voted_at, candidate:players!mvp_votes_voted_for_player_id_fkey(id, name, photo_url, team), match:matches(voting_open)`)
     .eq('voter_player_id', params.id)
     .order('voted_at', { ascending: false })
 
+  // Filtrar votos de jogos com votação ainda aberta (não revelar resultados)
+  const votesReceivedFiltered = votesReceived?.filter(v => !v.matches?.voting_open) || []
+  const votesGivenFiltered = votesGiven?.filter(v => !v.match?.voting_open) || []
+
   // MVP wins
-  const matchIdsWithVotes = [...new Set(votesReceived?.map(v => v.match_id) || [])]
+  const matchIdsWithVotes = [...new Set(votesReceivedFiltered?.map(v => v.match_id) || [])]
   let mvpWins = []
   if (matchIdsWithVotes.length > 0) {
     const { data: allVotesInMatches } = await supabase
@@ -66,7 +70,7 @@ export default async function PerfilJogador({ params }) {
     mvpWins = Object.entries(votesByMatch)
       .filter(([, matchVotes]) => Object.entries(matchVotes).sort((a, b) => b[1] - a[1])[0]?.[0] === params.id)
       .map(([matchId, matchVotes]) => {
-        const matchInfo = votesReceived?.find(v => String(v.match_id) === matchId)
+        const matchInfo = votesReceivedFiltered?.find(v => String(v.match_id) === matchId)
         return { matchId, match: matchInfo?.matches, votos: matchVotes[params.id] || 0 }
       })
       .sort((a, b) => new Date(b.match?.date || 0) - new Date(a.match?.date || 0))
@@ -159,7 +163,7 @@ export default async function PerfilJogador({ params }) {
   })
 
   const votosDadosPorJogador = {}
-  votesGiven?.forEach(v => {
+  votesGivenFiltered?.forEach(v => {
     const cid = v.voted_for_player_id
     if (!votosDadosPorJogador[cid]) votosDadosPorJogador[cid] = { player: v.candidate, count: 0 }
     votosDadosPorJogador[cid].count++
@@ -517,10 +521,10 @@ export default async function PerfilJogador({ params }) {
         {/* Votos dados */}
         {votosDadosOrdenados.length > 0 && (
           <div className="section-card" style={{marginBottom:16}}>
-            <div className="section-title">🗳️ Votos dados ({votesGiven?.length || 0})</div>
+            <div className="section-title">🗳️ Votos dados ({votesGivenFiltered?.length || 0})</div>
             <div>
               {votosDadosOrdenados.map((item, i) => {
-                const pctVotos = Math.round((item.count / (votesGiven?.length || 1)) * 100)
+                const pctVotos = Math.round((item.count / (votesGivenFiltered?.length || 1)) * 100)
                 const isCand = item.player?.team === 'white'
                 return (
                   <div key={item.player?.id || i} className="voto-row">
