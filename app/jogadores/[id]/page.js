@@ -60,18 +60,30 @@ export default async function PerfilJogador({ params }) {
   if (matchIdsWithVotes.length > 0) {
     const { data: allVotesInMatches } = await supabase
       .from('mvp_votes')
-      .select('match_id, voted_for_player_id')
+      .select('match_id, voted_for_player_id, voted_at')
       .in('match_id', matchIdsWithVotes)
     const votesByMatch = {}
     allVotesInMatches?.forEach(v => {
       if (!votesByMatch[v.match_id]) votesByMatch[v.match_id] = {}
-      votesByMatch[v.match_id][v.voted_for_player_id] = (votesByMatch[v.match_id][v.voted_for_player_id] || 0) + 1
+      if (!votesByMatch[v.match_id][v.voted_for_player_id]) {
+        votesByMatch[v.match_id][v.voted_for_player_id] = { count: 0, firstVotedAt: v.voted_at }
+      }
+      votesByMatch[v.match_id][v.voted_for_player_id].count++
+      // Guardar o voto mais antigo para desempate
+      if (v.voted_at < votesByMatch[v.match_id][v.voted_for_player_id].firstVotedAt) {
+        votesByMatch[v.match_id][v.voted_for_player_id].firstVotedAt = v.voted_at
+      }
     })
+    // Determinar vencedor com desempate pelo voto mais antigo
+    const getWinner = (matchVotes) =>
+      Object.entries(matchVotes).sort(([, a], [, b]) =>
+        b.count - a.count || new Date(a.firstVotedAt) - new Date(b.firstVotedAt)
+      )[0]
     mvpWins = Object.entries(votesByMatch)
-      .filter(([, matchVotes]) => Object.entries(matchVotes).sort((a, b) => b[1] - a[1])[0]?.[0] === params.id)
+      .filter(([, matchVotes]) => getWinner(matchVotes)?.[0] === params.id)
       .map(([matchId, matchVotes]) => {
         const matchInfo = votesReceivedFiltered?.find(v => String(v.match_id) === matchId)
-        return { matchId, match: matchInfo?.matches, votos: matchVotes[params.id] || 0 }
+        return { matchId, match: matchInfo?.matches, votos: matchVotes[params.id]?.count || 0 }
       })
       .sort((a, b) => new Date(b.match?.date || 0) - new Date(a.match?.date || 0))
   }
