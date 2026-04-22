@@ -213,10 +213,10 @@ export default function Admin() {
 
   const toggleVotacao = async (match) => {
     const abrindo = !match.voting_open
-    const updates = { voting_open: abrindo, voting_closes_at: abrindo ? new Date(Date.now() + 24 * 3600 * 1000).toISOString() : null }
+    const updates = { voting_open: abrindo, voting_closes_at: abrindo ? new Date(Date.now() + 16 * 3600 * 1000).toISOString() : null }
     if (abrindo) await supabase.from('matches').update({ voting_open: false, voting_closes_at: null }).eq('voting_open', true)
     await supabase.from('matches').update(updates).eq('id', match.id)
-    mostrarMensagem('ok', abrindo ? '✅ Votação aberta por 24h!' : '✅ Votação fechada!')
+    mostrarMensagem('ok', abrindo ? '✅ Votação aberta por 16h!' : '✅ Votação fechada!')
     carregarDados()
   }
 
