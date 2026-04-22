@@ -48,17 +48,24 @@ export default async function Home() {
   if (!matchVotacao) {
     const { data: votosRecentes } = await supabase
       .from('mvp_votes')
-      .select('voted_for_player_id, match_id')
-      .order('voted_at', { ascending: false })
+      .select('voted_for_player_id, match_id, voted_at')
+      .order('voted_at', { ascending: true })
 
     if (votosRecentes?.length > 0) {
-      const matchIdMaisRecente = votosRecentes[0].match_id
+      // Último jogo com votos (ordem ASC, por isso o último elemento tem o match mais recente)
+      const matchIdMaisRecente = votosRecentes[votosRecentes.length - 1].match_id
       const votosDessaPartida = votosRecentes.filter(v => v.match_id === matchIdMaisRecente)
       const contagem = {}
       votosDessaPartida.forEach(v => {
-        contagem[v.voted_for_player_id] = (contagem[v.voted_for_player_id] || 0) + 1
+        const pid = v.voted_for_player_id
+        if (!contagem[pid]) contagem[pid] = { count: 0, firstVotedAt: v.voted_at }
+        contagem[pid].count++
+        // firstVotedAt é automaticamente o mais antigo pois a query está ordenada ASC
       })
-      const mvpId = Object.entries(contagem).sort((a, b) => b[1] - a[1])[0]?.[0]
+      // Desempate: mais votos primeiro; em empate, primeiro voto mais antigo vence
+      const mvpId = Object.entries(contagem).sort(([, a], [, b]) =>
+        b.count - a.count || new Date(a.firstVotedAt) - new Date(b.firstVotedAt)
+      )[0]?.[0]
       if (mvpId) {
         const { data: mvpPlayer } = await supabase
           .from('players')
@@ -70,7 +77,7 @@ export default async function Home() {
           .select('date, phase, match_number, series_id')
           .eq('id', matchIdMaisRecente)
           .single()
-        ultimoMvp = { player: mvpPlayer, votos: contagem[mvpId], match: mvpMatch, matchId: matchIdMaisRecente }
+        ultimoMvp = { player: mvpPlayer, votos: contagem[mvpId].count, match: mvpMatch, matchId: matchIdMaisRecente }
       }
     }
   }
