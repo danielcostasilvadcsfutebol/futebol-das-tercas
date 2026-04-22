@@ -15,6 +15,31 @@ export default async function MvpDetalhe({ params }) {
 
   if (!match) notFound()
 
+  // Não revelar resultados enquanto a votação está aberta
+  if (match.voting_open) {
+    return (
+      <>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600;700&display=swap');
+          .mvp-page { font-family: 'DM Sans', sans-serif; }
+          .display-font { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.04em; }
+        `}</style>
+        <div className="mvp-page" style={{textAlign:'center', padding:'60px 20px'}}>
+          <div style={{fontSize:'3rem', marginBottom:16}}>🗳️</div>
+          <div className="display-font" style={{fontSize:'1.8rem', color:'white', marginBottom:8}}>
+            Votação em curso
+          </div>
+          <p style={{fontSize:'0.85rem', color:'#475569'}}>
+            Os resultados ficam disponíveis após o encerramento da votação.
+          </p>
+          <a href="/" style={{display:'inline-block', marginTop:24, fontSize:'0.8rem', color:'#475569', textDecoration:'none'}}>
+            ← Início
+          </a>
+        </div>
+      </>
+    )
+  }
+
   // Todos os votos deste jogo com informação de quem votou e em quem
   const { data: votes } = await supabase
     .from('mvp_votes')
